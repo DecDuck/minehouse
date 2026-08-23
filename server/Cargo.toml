@@ -1,0 +1,10 @@
+[package]
+edition = "2024"
+name = "server"
+version = "0.1.0"
+
+[dependencies]
+axum = "0.8.9"
+common = { path = "../common" }
+oasgen = { version = "0.25.0", features = ["axum"] }
+tarpc = "0.38.0"
