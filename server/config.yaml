@@ -1,0 +1,2 @@
+bind_addr: 0.0.0.0:5000
+db_url: postgres://minehouse:minehouse@dind-7786b6ef-01b0-45b2-8f29-50d0e8093e01/minehouse

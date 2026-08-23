@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:14-alpine
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=minehouse
+      - POSTGRES_USER=minehouse
+      - POSTGRES_DB=minehouse
+
+volumes:
+  postgres-data:
