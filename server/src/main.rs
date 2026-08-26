@@ -1,11 +1,20 @@
-use std::sync::Arc;
+use std::{sync::Arc, usize};
 
 use axum::Router;
+use common::rpc::MinehouseServer as _;
+use futures::{StreamExt as _, future};
 use oasgen::Server;
-use tokio::net::TcpListener;
+use tarpc::{
+    serde_transport,
+    server::{BaseChannel, Channel as _},
+};
+use tokio::{join, net::TcpListener};
 use tracing::info;
 
-use crate::{config::load_config, db::DatabaseHandle, state::MinehouseState};
+use crate::{
+    config::load_config, db::DatabaseHandle, rpc::server::MinehouseServerImpl,
+    state::MinehouseState, work::pool::WorkUnitPool,
+};
 
 pub mod api;
 pub mod config;
@@ -50,19 +59,50 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let server = server.freeze();
 
-    let db_handle = Arc::new(DatabaseHandle::new(&config).await?); 
+    let db_handle = Arc::new(DatabaseHandle::new(&config).await?);
     info!("connected to database");
 
-    let app_state = MinehouseState::new(db_handle);
+    let work_unit_pool = Arc::new(WorkUnitPool::new());
+
+    let app_state = Arc::new(MinehouseState::new(db_handle, work_unit_pool));
+    let server_app_state = app_state.clone();
 
     let app = Router::new()
         .merge(server.into_router())
         // websockets
         .with_state(app_state);
 
-    let listener = TcpListener::bind(config.bind_addr.clone()).await?;
-    info!("listening on {:?}", listener.local_addr()?);
-    axum::serve(listener, app).await?;
+    let axum_listener = TcpListener::bind(config.api_bind_addr.clone()).await?;
+    info!("api listening on {:?}", axum_listener.local_addr()?);
+    let axum_future = axum::serve(axum_listener, app);
+
+    let control_listener = TcpListener::bind(config.control_bind_addr.clone()).await?;
+    info!("control listening on {:?}", control_listener.local_addr()?);
+    let mut control_listener = serde_transport::tcp::listen_on(
+        control_listener,
+        tarpc::tokio_serde::formats::Bincode::default,
+    )
+    .await?;
+    control_listener.config_mut().max_frame_length(usize::MAX);
+
+    let control_future = control_listener
+        .filter_map(|r| future::ready(r.ok()))
+        .map(BaseChannel::with_defaults)
+        .for_each_concurrent(None, |channel| {
+            let app_state = server_app_state.clone();
+            async move {
+                let server = MinehouseServerImpl::new(app_state);
+                channel
+                    .execute(server.serve())
+                    .for_each_concurrent(None, |response| async move {
+                        tokio::spawn(response);
+                    })
+                    .await;
+            }
+        });
+
+    let (axum_error, _) = join!(axum_future, control_future);
+    axum_error?;
 
     Ok(())
 }

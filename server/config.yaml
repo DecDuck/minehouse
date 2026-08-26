@@ -1,2 +1,3 @@
-bind_addr: 0.0.0.0:5000
+api_bind_addr: 0.0.0.0:5000
+control_bind_addr: 0.0.0.0:5001
 db_url: postgres://minehouse:minehouse@dind-7786b6ef-01b0-45b2-8f29-50d0e8093e01/minehouse

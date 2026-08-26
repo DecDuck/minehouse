@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use sqlx::types::{JsonValue, Uuid};
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct ItemStack {
     pub id: Uuid,
     pub container_id: Uuid,

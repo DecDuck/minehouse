@@ -3,7 +3,8 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct MinehouseConfig {
-    pub bind_addr: String,
+    pub api_bind_addr: String,
+    pub control_bind_addr: String,
     pub db_url: String,
 }
 
