@@ -22,6 +22,7 @@ pub mod db;
 pub mod rpc;
 pub mod state;
 pub mod work;
+pub mod mwms;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

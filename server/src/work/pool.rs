@@ -55,11 +55,11 @@ impl WorkUnitPool {
             .pool
             .get(id)
             .ok_or(MinehouseError::WorkUnitNotFound)?;
-        let guard = wu.assigned_to.lock(*client_id).await;
-
-        if guard.is_none() {
+        let Some(guard) = wu.assigned_to.lock(*client_id).await else {
             return Err(MinehouseError::AlreadyLocked);
-        }
+        };
+
+        guard.wait_finished().await;
 
         Ok(())
     }
