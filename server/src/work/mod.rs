@@ -6,6 +6,7 @@ use crate::state::MinehouseState;
 
 pub mod pool;
 pub mod index_container;
+pub mod transfer;
 
 pub struct FinishedWorkUnit(pub WorkUnit);
 
@@ -26,7 +27,7 @@ macro_rules! impl_work_unit_action {
     };
 }
 
-impl_work_unit_action!(IndexContainer);
+impl_work_unit_action!(IndexContainer, Transfer);
 
 impl WorkUnitAction for WorkUnit {
     async fn action(self, state: Arc<MinehouseState>) -> Result<(), MinehouseError> {

@@ -8,7 +8,7 @@ use common::{
 };
 use tarpc::context::Context;
 
-use crate::state::MinehouseState;
+use crate::{state::MinehouseState, work::WorkUnitAction};
 
 #[derive(Clone)]
 pub struct MinehouseServerImpl {
@@ -47,12 +47,13 @@ impl MinehouseServer for MinehouseServerImpl {
         let is_done = unit.is_done();
         self.state
             .pool
-            .submit_work_unit(unit, &self.client_id)
+            .submit_work_unit(unit.clone(), &self.client_id)
             .await?;
+        if is_done {
+            unit.action(self.state.clone()).await?;
+        }
         Ok(is_done)
     }
 
-    async fn heartbeat(self, _context: Context) -> () {
-        todo!()
-    }
+    async fn heartbeat(self, _context: Context) -> () {}
 }

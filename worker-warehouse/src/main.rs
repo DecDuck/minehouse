@@ -1,17 +1,18 @@
+use std::time::Duration;
+
 use bevy_ecs::component::Component;
-use common::work::{WorkUnit, WorkUnitData};
+use common::work::WorkUnitData;
 use tokio::task::spawn_blocking;
-use tracing::info;
+use tracing::{info, warn};
 use worker_core::{config::load_config, control::ControlClient};
 
 use crate::config::WarehouseWorkerConfig;
 
 pub mod config;
+mod exec;
 
 #[derive(Clone, Component, Default)]
-pub struct WarehouseWorkerState {
-
-}
+pub struct WarehouseWorkerState {}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
@@ -36,12 +37,40 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let state = WarehouseWorkerState {};
 
-    let (mc_client, control_client) = config.worker.create(state, async |client, event, state| {
+    let (mc_client, control_client) = config.worker.create(state, async |_client, _event, _state| {
         
     }).await?;
     let control_client = ControlClient::new(control_client);
 
-    let wu = control_client.accept_new(|v| matches!(v.data, WorkUnitData::IndexContainer(..))).await?;
+    info!("warehouse worker ready, waiting for work");
 
-    Ok(())
+    loop {
+        let accepted = control_client
+            .accept_new(|v| {
+                matches!(
+                    v.data,
+                    WorkUnitData::IndexContainer(..) | WorkUnitData::Transfer(..)
+                )
+            })
+            .await;
+
+        match accepted {
+            Ok(Some(unit)) => {
+                let id = unit.id;
+                match exec::execute(&mc_client, unit).await {
+                    Ok(done) => {
+                        if let Err(err) = control_client.submit(done).await {
+                            warn!("failed to submit work unit {id:?}: {err:?}");
+                        }
+                    }
+                    Err(err) => warn!("failed to execute work unit {id:?}: {err:?}"),
+                }
+            }
+            Ok(None) => tokio::time::sleep(Duration::from_secs(2)).await,
+            Err(err) => {
+                warn!("failed to poll for work: {err:?}");
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
 }

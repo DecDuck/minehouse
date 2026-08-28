@@ -1,7 +1,8 @@
 use common::item_stack::ItemStack;
 use sqlx::types::{JsonValue, Uuid};
 
-use super::DatabaseHandle;
+use super::{DatabaseHandle, container_region::RegionType};
+use crate::mwms::category::ItemCategory;
 
 impl DatabaseHandle {
     /// Atomically replaces the entire contents of a container: every existing
@@ -40,5 +41,54 @@ impl DatabaseHandle {
         .await?;
 
         tx.commit().await
+    }
+
+    pub async fn get_container_contents(
+        &self,
+        container_id: Uuid,
+    ) -> Result<Vec<ItemStack>, sqlx::Error> {
+        sqlx::query_as::<_, ItemStack>(
+            "select id, container_id, item_kind, slot, components, quantity, components_digest
+             from item_stack where container_id = $1",
+        )
+        .bind(container_id)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    /// Finds stacks of a given `item_kind` in containers of a region type
+    /// (e.g. all bulk stacks of `minecraft:stone`).
+    pub async fn find_stacks_in_region_type(
+        &self,
+        region_type: RegionType,
+        item_kind: &str,
+    ) -> Result<Vec<ItemStack>, sqlx::Error> {
+        sqlx::query_as::<_, ItemStack>(
+            "select s.id, s.container_id, s.item_kind, s.slot, s.components, s.quantity, s.components_digest
+             from item_stack s
+             join container c on c.id = s.container_id
+             join container_region r on r.id = c.region_id
+             where r.type = $1 and s.item_kind = $2",
+        )
+        .bind(region_type)
+        .bind(item_kind)
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn distinct_bulk_item_kinds(
+        &self,
+        category: ItemCategory,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar::<_, String>(
+            "select distinct s.item_kind
+             from item_stack s
+             join container c on c.id = s.container_id
+             join container_region r on r.id = c.region_id
+             where r.type = 'bulk' and c.category = $1",
+        )
+        .bind(category)
+        .fetch_all(&self.pool)
+        .await
     }
 }

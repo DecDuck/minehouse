@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS cube;
 
-create type region_type as enum ('bulk', 'pickface', 'putaway', 'processing', 'order');
+create type region_type as enum ('bulk', 'order_pickface', 'user_pickface', 'putaway', 'processing', 'order');
 
 create table container_region (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),

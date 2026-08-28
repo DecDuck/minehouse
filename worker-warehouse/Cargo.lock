@@ -4332,9 +4332,11 @@ dependencies = [
  "bevy_ecs",
  "common",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
  "worker_core",
 ]
 

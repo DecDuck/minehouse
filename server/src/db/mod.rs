@@ -1,4 +1,5 @@
 use common::vec::{Point, PointRegion};
+use serde::{Deserialize, Serialize};
 use sqlx::{
     Decode, Encode, PgPool, Postgres, Type,
     encode::IsNull,
@@ -13,8 +14,9 @@ pub mod container_region;
 pub mod crafting_engine;
 pub mod generic_crafting_engine;
 pub mod item_stack;
+pub mod user_pickface;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Cube {
     pub x1: f64,
     pub y1: f64,

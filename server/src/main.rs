@@ -12,8 +12,8 @@ use tokio::{join, net::TcpListener};
 use tracing::info;
 
 use crate::{
-    config::load_config, db::DatabaseHandle, rpc::server::MinehouseServerImpl,
-    state::MinehouseState, work::pool::WorkUnitPool,
+    config::load_config, db::DatabaseHandle, planner::PlannerQueue,
+    rpc::server::MinehouseServerImpl, state::MinehouseState, work::pool::WorkUnitPool,
 };
 
 pub mod api;
@@ -23,6 +23,8 @@ pub mod rpc;
 pub mod state;
 pub mod work;
 pub mod mwms;
+pub mod planner;
+pub mod region;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -64,12 +66,21 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("connected to database");
 
     let work_unit_pool = Arc::new(WorkUnitPool::new());
+    let planner_queue = Arc::new(PlannerQueue::new());
 
-    let app_state = Arc::new(MinehouseState::new(db_handle, work_unit_pool));
+    let app_state = Arc::new(MinehouseState::new(db_handle, work_unit_pool, planner_queue));
     let server_app_state = app_state.clone();
+
+    let planner_state = app_state.clone();
+    tokio::spawn(async move { planner::run(planner_state).await });
+
+    let scheduler_state = app_state.clone();
+    let reconcile_period = std::time::Duration::from_secs(config.reconcile_interval_secs);
+    tokio::spawn(async move { planner::schedule::run(scheduler_state, reconcile_period).await });
 
     let app = Router::new()
         .merge(server.into_router())
+        .merge(api::router())
         // websockets
         .with_state(app_state);
 

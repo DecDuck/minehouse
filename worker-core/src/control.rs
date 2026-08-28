@@ -48,4 +48,12 @@ impl ControlClient {
         let wu_lock = self.work_unit.lock().await;
         wu_lock.as_ref().map(|v| v.0.clone())
     }
+
+    /// Submits a completed (or partially completed) work unit back to the server.
+    pub async fn submit(&self, unit: WorkUnit) -> Result<bool, anyhow::Error> {
+        let mut ctx = context::current();
+        ctx.deadline = Instant::now() + Duration::from_secs(60);
+        let done = self.client.submit_work_unit(ctx, unit).await??;
+        Ok(done)
+    }
 }

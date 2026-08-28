@@ -6,6 +6,12 @@ pub struct MinehouseConfig {
     pub api_bind_addr: String,
     pub control_bind_addr: String,
     pub db_url: String,
+    #[serde(default = "default_reconcile_interval_secs")]
+    pub reconcile_interval_secs: u64,
+}
+
+fn default_reconcile_interval_secs() -> u64 {
+    30
 }
 
 pub async fn load_config() -> Result<MinehouseConfig, anyhow::Error> {

@@ -16,17 +16,41 @@ impl WorkUnitPool {
         }
     }
 
-    pub fn queue_work_unit(&self, work_unit: WorkUnit, priority: Option<usize>) {
-        if let Some(_) = self.pool.insert(
-            work_unit.id,
-            ScheduledWorkUnit {
-                priority: priority.unwrap_or(0),
-                work_unit,
-                assigned_to: Arc::new(DropLockAndNotify::new()),
-            },
-        ) {
+    /// Queues a work unit. When `dedup_key` is set, the unit is skipped (returns
+    /// `false`) if a live, not-yet-done unit with the same key is already queued.
+    pub fn queue_work_unit(
+        &self,
+        work_unit: WorkUnit,
+        priority: Option<usize>,
+        dedup_key: Option<String>,
+    ) -> bool {
+        if let Some(key) = dedup_key.as_deref() {
+            let already_queued = self
+                .pool
+                .iter()
+                .any(|v| v.dedup_key.as_deref() == Some(key) && !v.work_unit.is_done());
+            if already_queued {
+                return false;
+            }
+        }
+
+        if self
+            .pool
+            .insert(
+                work_unit.id,
+                ScheduledWorkUnit {
+                    priority: priority.unwrap_or(0),
+                    work_unit,
+                    assigned_to: Arc::new(DropLockAndNotify::new()),
+                    dedup_key,
+                },
+            )
+            .is_some()
+        {
             panic!("UUIDv4 collision: buy a lottery ticket")
         }
+
+        true
     }
 
     pub fn work_units(&self) -> Vec<WorkUnit> {
@@ -51,11 +75,14 @@ impl WorkUnitPool {
         id: &WorkUnitId,
         client_id: &ClientId,
     ) -> Result<(), MinehouseError> {
-        let wu = self
-            .pool
-            .get(id)
-            .ok_or(MinehouseError::WorkUnitNotFound)?;
-        let Some(guard) = wu.assigned_to.lock(*client_id).await else {
+        // Clone out the notifier and drop the DashMap ref before the long await,
+        // otherwise the shard lock is held for the entire lock lifetime and
+        // `submit_work_unit` on the same key would deadlock.
+        let assigned_to = {
+            let wu = self.pool.get(id).ok_or(MinehouseError::WorkUnitNotFound)?;
+            wu.assigned_to.clone()
+        };
+        let Some(guard) = assigned_to.lock(*client_id).await else {
             return Err(MinehouseError::AlreadyLocked);
         };
 
@@ -80,8 +107,12 @@ impl WorkUnitPool {
         } else {
             return Err(MinehouseError::NotLocked);
         }
+        let is_done = wu.is_done();
         scheduled_wu.work_unit = wu;
-
+        if is_done {
+            // Wake the long-poll in `lock_work_unit` now the unit is finished.
+            scheduled_wu.assigned_to.mark_finished();
+        }
 
         Ok(())
     }
@@ -96,4 +127,6 @@ struct ScheduledWorkUnit {
     pub work_unit: WorkUnit,
     /// Worker that is workunit is assigned to
     pub assigned_to: Arc<DropLockAndNotify<ClientId>>,
+    /// Logical key used to skip enqueuing duplicate work.
+    pub dedup_key: Option<String>,
 }

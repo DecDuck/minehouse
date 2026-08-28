@@ -1,8 +1,14 @@
+use std::str::FromStr;
+
 use azalea_registry::builtin::ItemKind;
 use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 
 use crate::mwms::item_profiles::dft::DefaultItemCategoryProfile;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "item_category", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum ItemCategory {
     // All rock types, so stone, deepslate, granite, andesite, etc etc. Includes cobbled and mossy variants. Also rock byproducts, like walls, tiles, slabs, etc etc
     Rocks,
@@ -27,4 +33,13 @@ pub trait ItemCategoryProfile {
 #[enum_dispatch(ItemCategoryProfile)]
 pub enum ItemCategoryProfiles {
     Default(DefaultItemCategoryProfile),
+}
+
+/// Resolves an `item_kind` string (`"minecraft:stone"` or `"stone"`) to its
+/// category, falling back to `Other` for anything unrecognised.
+pub fn categorize(item_kind: &str) -> ItemCategory {
+    match ItemKind::from_str(item_kind) {
+        Ok(kind) => DefaultItemCategoryProfile.map_item_kind(&kind),
+        Err(_) => ItemCategory::Other,
+    }
 }
