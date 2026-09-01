@@ -11,7 +11,7 @@ pub enum TransferDocumentState {
     Released,
     Working,
     Closed,
-    Cancelled(String),
+    Cancelled { reason: String },
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -40,9 +40,13 @@ pub struct TransferOrder {
 
 #[derive(Clone)]
 pub enum TransferLineState {
-    Available,                // all remaining
-    InTransit(u64, u64, u64), // available, in transit, completed
-    Completed,                // all moved
+    Available, // all remaining
+    InTransit {
+        available: u64,
+        in_transit: u64,
+        completed: u64,
+    }, // available, in transit, completed
+    Completed, // all moved
 }
 
 #[derive(Clone)]
@@ -102,7 +106,11 @@ impl TransferDocument {
                     value
                 });
 
-            transfer_line.state = TransferLineState::InTransit(available, in_transit, completed);
+            transfer_line.state = TransferLineState::InTransit {
+                available,
+                in_transit,
+                completed,
+            };
         }
     }
 }

@@ -186,7 +186,7 @@ impl BulkStorage {
             let id = *document.key();
             if matches!(
                 document.document.lock().await.header.state,
-                TransferDocumentState::Cancelled(_)
+                TransferDocumentState::Cancelled { reason: _ }
             ) {
                 continue;
             }
@@ -259,9 +259,9 @@ impl StorageEndpoint for BulkStorage {
             .collect();
         let cancelled_documents: HashSet<_> = invalid_documents.iter().map(|(id, _)| *id).collect();
         for (_, document) in invalid_documents {
-            document.lock().await.header.state = TransferDocumentState::Cancelled(
-                "A planned destination slot is no longer available".to_owned(),
-            );
+            document.lock().await.header.state = TransferDocumentState::Cancelled {
+                reason: "A planned destination slot is no longer available".to_owned(),
+            };
         }
 
         // Remove containers that are no longer present in the snapshot.
@@ -564,7 +564,7 @@ mod tests {
         let document = storage.documents.get(&id).expect("cancelled document");
         assert!(matches!(
             document.document.lock().await.header.state,
-            TransferDocumentState::Cancelled(ref reason)
+            TransferDocumentState::Cancelled { ref reason }
                 if reason == "A planned destination slot is no longer available"
         ));
         assert!(storage.containers.read().await.is_empty());
