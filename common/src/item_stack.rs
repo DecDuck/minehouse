@@ -17,7 +17,7 @@ pub struct ItemStack {
 }
 
 #[derive(Hash, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SKU(u64, i32);
+pub struct SKU(u64, i32, ItemKind);
 
 impl ItemStack {
     pub fn sku(&self) -> SKU {
@@ -25,12 +25,12 @@ impl ItemStack {
         self.item_kind.hash(&mut hasher);
         self.components_digest.hash(&mut hasher);
 
-        let stack_size = match ItemKind::from_str(&self.item_kind) {
-            Ok(item_kind) => item_kind.max_stack_size(),
-            Err(_) => 64,
+        let (kind, stack_size) = match ItemKind::from_str(&self.item_kind) {
+            Ok(kind) => (kind, kind.max_stack_size()),
+            Err(_) => (ItemKind::Air, 64),
         };
 
-        SKU(hasher.finish(), stack_size)
+        SKU(hasher.finish(), stack_size, kind)
     }
 }
 
@@ -38,5 +38,9 @@ impl ItemStack {
 impl SKU {
     pub fn stack_size(&self) -> i32 {
         self.1
+    }
+
+    pub fn kind(&self) -> ItemKind {
+        self.2
     }
 }

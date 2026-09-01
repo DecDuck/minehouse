@@ -1,17 +1,26 @@
-use crate::{db::container::Container, mwms::category::ItemCategory};
+use std::collections::HashMap;
 
-/// A bulk container tagged with the category it's allocated to. `category` is
-/// `None` while the container is unallocated (i.e. empty).
+use crate::{
+    db::container::Container,
+    mwms::{category::ItemCategory, transfer::document::TransferDocumentId},
+};
+
+/// A bulk container tagged with the category it's allocated to and the slots
+/// reserved by in-flight transfers. `category` is `None` while unallocated.
 pub(super) struct BulkContainer {
     pub(super) container: Container,
     pub(super) category: Option<ItemCategory>,
+    /// Slot index to the transfer document that reserved it.
+    pub(super) reserved: HashMap<usize, TransferDocumentId>,
 }
 
 impl BulkContainer {
-    /// Free slots, i.e. capacity minus the number of occupied slots.
-    pub(super) fn empty_slots(&self) -> u64 {
-        self.container
-            .capacity
-            .saturating_sub(self.container.contents.len() as u64)
+    /// Slots that are neither occupied by a stack nor reserved by a transfer.
+    pub(super) fn available_slots(&self) -> Vec<usize> {
+        (0..self.container.capacity as usize)
+            .filter(|slot| {
+                !self.container.contents.contains_key(slot) && !self.reserved.contains_key(slot)
+            })
+            .collect()
     }
 }

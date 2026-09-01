@@ -11,6 +11,7 @@ pub enum TransferDocumentState {
     Released,
     Working,
     Closed,
+    Cancelled(String),
 }
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]

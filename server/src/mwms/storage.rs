@@ -4,7 +4,7 @@ use crate::{
     db::{container::Container, container_region::ContainerRegion}, mwms::transfer::{document::TransferDocumentHandle, request::TransferRequest},
 };
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub struct StorageEndpointId(u64);
 
 impl StorageEndpointId {
@@ -13,10 +13,13 @@ impl StorageEndpointId {
     }
 }
 
+#[derive(Debug)]
 pub enum StorageEndpointError {
     StorageFull(StorageEndpointId),
     /// The transfer order doesn't route between the two negotiating endpoints.
     EndpointMismatch,
+    ContainerRegionMismatch,
+    DuplicateContainerId,
 }
 
 /// Transfers happen between two endpoints, who represent a set of containers
