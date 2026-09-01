@@ -1,8 +1,7 @@
 use std::hash::BuildHasher;
-use std::sync::Arc;
 
 use crate::{
-    db::{container::Container, container_region::ContainerRegion}, mwms::transfer::{document::{TransferDocument, TransferDocumentHandle}, request::TransferRequest},
+    db::{container::Container, container_region::ContainerRegion}, mwms::transfer::{document::TransferDocumentHandle, request::TransferRequest},
 };
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -51,9 +50,10 @@ pub trait StorageEndpoint {
         Other: StorageEndpoint;
 
     /// Called by the storage endpoint from request_transfer, to ensure this storage endpoint is happy with it
+    /// The shared document handle is recorded by both endpoints
     fn negotiate_transfer(
         &self,
         request: &TransferRequest,
-        document: &TransferDocument,
+        document: &TransferDocumentHandle,
     ) -> impl Future<Output = Result<(), StorageEndpointError>>;
 }

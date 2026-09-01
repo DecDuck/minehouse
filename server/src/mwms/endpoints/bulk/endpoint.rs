@@ -1,42 +1,44 @@
-//! Example [`StorageEndpoint`] for a bulk region.
-//!
-//! Bulk storage is the warehouse floor: stock is spread across many far-apart,
-//! category-based containers where density matters more than pick speed. This
-//! example implements the bookkeeping the trait actually cares about, accepting
-//! re-index snapshots and rejecting transfers that would overflow the region.
-//! The physical, category-based slotting is left as a comment where it hooks in.
+use std::collections::HashSet;
 
-use tokio::sync::{Mutex, RwLock};
+use dashmap::DashMap;
+use sqlx::types::Uuid;
+use tokio::sync::RwLock;
 
 use crate::{
     db::{container::Container, container_region::ContainerRegion},
     mwms::{
+        category::ItemCategoryProfiles,
+        item_profiles::dft::DefaultItemCategoryProfile,
         storage::{StorageEndpoint, StorageEndpointError, StorageEndpointId},
         transfer::{
-            document::{TransferDocument, TransferDocumentHandle},
+            document::{TransferDocumentHandle, TransferDocumentId},
             request::TransferRequest,
         },
     },
 };
 
+use super::{container::BulkContainer, document::BulkTransferDocument};
+
 pub struct BulkStorage {
     id: StorageEndpointId,
     region: ContainerRegion,
-    /// Authoritative container list, replaced wholesale by re-index jobs.
-    containers: RwLock<Vec<Container>>,
-    /// Transfer documents this endpoint has committed to.
-    documents: Mutex<Vec<TransferDocumentHandle>>,
+    /// Categorised containers, kept in sync incrementally by re-index jobs.
+    containers: RwLock<Vec<BulkContainer>>,
+    /// Transfer documents this endpoint has committed to, keyed by document id.
+    documents: DashMap<TransferDocumentId, BulkTransferDocument>,
+    /// Maps item kinds to categories when slotting newly-seen containers.
+    profile: ItemCategoryProfiles,
 }
 
 impl BulkStorage {
-    /// Total number of item stacks the region can hold across every container.
-    async fn total_capacity(&self) -> u64 {
+    /// Free slots per container across the region, keyed by container id.
+    async fn empty_slots(&self) -> Vec<(Uuid, u64)> {
         self.containers
             .read()
             .await
             .iter()
-            .map(|container| container.capacity.max(0) as u64)
-            .sum()
+            .map(|entry| (entry.container.id, entry.empty_slots()))
+            .collect()
     }
 
     /// Number of stack-sized slots a request needs, matching how
@@ -59,7 +61,8 @@ impl BulkStorage {
             return Ok(());
         }
 
-        if Self::required_slots(request) > self.total_capacity().await {
+        let free: u64 = self.empty_slots().await.into_iter().map(|(_, free)| free).sum();
+        if Self::required_slots(request) > free {
             return Err(StorageEndpointError::StorageFull(self.id));
         }
 
@@ -68,7 +71,8 @@ impl BulkStorage {
 
     /// Commits a transfer document to this endpoint's ledger.
     async fn record(&self, document: TransferDocumentHandle) {
-        self.documents.lock().await.push(document);
+        let id = document.lock().await.id;
+        self.documents.insert(id, BulkTransferDocument { document });
     }
 }
 
@@ -78,7 +82,8 @@ impl StorageEndpoint for BulkStorage {
             id: StorageEndpointId::random(),
             region,
             containers: RwLock::new(Vec::new()),
-            documents: Mutex::new(Vec::new()),
+            documents: DashMap::new(),
+            profile: ItemCategoryProfiles::Default(DefaultItemCategoryProfile),
         }
     }
 
@@ -87,14 +92,30 @@ impl StorageEndpoint for BulkStorage {
     }
 
     async fn reindex(&self, containers: Vec<Container>) -> Result<(), StorageEndpointError> {
-        // A real bulk slotter would re-place items into category-based
-        // containers here; the example just adopts the authoritative snapshot.
+        let mut current = self.containers.write().await;
+
+        // Deleted containers: drop anything missing from the new snapshot.
+        let incoming: HashSet<_> = containers.iter().map(|container| container.id).collect();
+        current.retain(|entry| incoming.contains(&entry.container.id));
+
+        // New containers: categorise from their contents. Unchanged ones (same
+        // id) keep their existing allocation untouched.
+        let known: HashSet<_> = current.iter().map(|entry| entry.container.id).collect();
+        for container in containers {
+            if known.contains(&container.id) {
+                continue;
+            }
+            let category = container.categorize(&self.profile);
+            current.push(BulkContainer { container, category });
+        }
+
+        let unallocated = current.iter().filter(|entry| entry.category.is_none()).count();
         tracing::debug!(
             region = %self.region.id,
-            containers = containers.len(),
+            containers = current.len(),
+            unallocated,
             "bulk endpoint reindexed",
         );
-        *self.containers.write().await = containers;
         Ok(())
     }
 
@@ -115,13 +136,13 @@ impl StorageEndpoint for BulkStorage {
         // Make sure our own side can honour the transfer before asking theirs.
         self.ensure_space(request).await?;
 
-        let document = request.clone().accept();
+        // Build the shared handle up front so both endpoints record the same
+        // document rather than divergent copies.
+        let handle = TransferDocumentHandle::new(request.clone().accept());
 
         // The counterparty checks and records its side; bail if it's unhappy.
-        other.negotiate_transfer(request, &document).await?;
+        other.negotiate_transfer(request, &handle).await?;
 
-        // Both endpoints are happy: record and hand back the document.
-        let handle = TransferDocumentHandle::new(document);
         self.record(handle.clone()).await;
         Ok(handle)
     }
@@ -129,11 +150,11 @@ impl StorageEndpoint for BulkStorage {
     async fn negotiate_transfer(
         &self,
         request: &TransferRequest,
-        document: &TransferDocument,
+        document: &TransferDocumentHandle,
     ) -> Result<(), StorageEndpointError> {
         self.ensure_space(request).await?;
-        self.record(TransferDocumentHandle::new(document.clone()))
-            .await;
+        // Clone the handle, not the document: both endpoints share one Arc.
+        self.record(document.clone()).await;
         Ok(())
     }
 }

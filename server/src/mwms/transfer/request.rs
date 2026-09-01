@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use common::item_stack::SKU;
 
 use crate::mwms::transfer::document::{
-    TransferDocument, TransferDocumentJob, TransferDocumentJobState, TransferLine, TransferOrder,
+    TransferDocument, TransferDocumentId, TransferDocumentJob, TransferDocumentJobState,
+    TransferLine, TransferOrder,
 };
 
 #[derive(Clone)]
@@ -32,6 +33,7 @@ impl TransferRequest {
         }
 
         let mut document = TransferDocument {
+            id: TransferDocumentId::random(),
             header: self.header,
             lines: self.lines,
             jobs,

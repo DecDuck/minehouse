@@ -1,4 +1,4 @@
-use std::{collections::HashMap, ops::Deref, sync::Arc};
+use std::{collections::HashMap, hash::BuildHasher, ops::Deref, sync::Arc};
 
 use common::item_stack::SKU;
 use tokio::sync::Mutex;
@@ -13,8 +13,18 @@ pub enum TransferDocumentState {
     Closed,
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+pub struct TransferDocumentId(u64);
+
+impl TransferDocumentId {
+    pub fn random() -> Self {
+        Self(std::hash::RandomState::new().hash_one(()))
+    }
+}
+
 #[derive(Clone)]
 pub struct TransferDocument {
+    pub id: TransferDocumentId,
     pub header: TransferOrder,
     pub lines: HashMap<SKU, TransferLine>,
     pub jobs: Vec<TransferDocumentJob>,

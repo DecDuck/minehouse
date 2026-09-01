@@ -3,6 +3,7 @@ use enum_dispatch::enum_dispatch;
 
 use crate::mwms::item_profiles::dft::DefaultItemCategoryProfile;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ItemCategory {
     // All rock types, so stone, deepslate, granite, andesite, etc etc. Includes cobbled and mossy variants. Also rock byproducts, like walls, tiles, slabs, etc etc
     Rocks,
@@ -22,6 +23,7 @@ pub enum ItemCategory {
     Other,   
 }
 
+#[enum_dispatch]
 pub trait ItemCategoryProfile {
     fn map_item_kind(&self, kind: &ItemKind) -> ItemCategory;
 }
