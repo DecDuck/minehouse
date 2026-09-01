@@ -957,6 +957,8 @@ dependencies = [
 name = "common"
 version = "0.1.0"
 dependencies = [
+ "azalea-inventory",
+ "azalea-registry",
  "enum_dispatch",
  "serde",
  "sqlx",

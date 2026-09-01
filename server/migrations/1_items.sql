@@ -16,7 +16,7 @@ create table item_stack(
     -- item_kind + digest match. Lets `components` take part in the unique key.
     components_digest text generated always as (md5(components::text)) stored,
 
-    unique (container_id, item_kind, components_digest)
+    unique (container_id, slot)
 );
 
 create index on item_stack (item_kind);

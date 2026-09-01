@@ -8,6 +8,8 @@ pub enum ItemCategory {
     Rocks,
     // All wood types, and their byproducts, like sticks, saplings, slabs, etc etc
     Wood,
+    /// All other natural stuff, like grass, dirt, clay, sand, gravel, etc etc
+    Nature,
     // All tools, and enchantment books
     Tools,
     // Materials, including valuables. Diamonds, gold, iron, etc etc, including nuggets. 

@@ -60,21 +60,8 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::CinnabarBrickWall
             | ItemKind::ChiseledCinnabar
             | ItemKind::DripstoneBlock
-            | ItemKind::GrassBlock
-            | ItemKind::Dirt
-            | ItemKind::CoarseDirt
-            | ItemKind::Podzol
-            | ItemKind::RootedDirt
-            | ItemKind::Mud
-            | ItemKind::CrimsonNylium
-            | ItemKind::WarpedNylium
             | ItemKind::Cobblestone
             | ItemKind::Bedrock
-            | ItemKind::Sand
-            | ItemKind::SuspiciousSand
-            | ItemKind::SuspiciousGravel
-            | ItemKind::RedSand
-            | ItemKind::Gravel
             | ItemKind::CoalOre
             | ItemKind::DeepslateCoalOre
             | ItemKind::IronOre
@@ -121,17 +108,10 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::Bricks
             | ItemKind::MossyCobblestone
             | ItemKind::Obsidian
-            | ItemKind::Farmland
             | ItemKind::Furnace
             | ItemKind::Ladder
             | ItemKind::CobblestoneStairs
-            | ItemKind::Snow
-            | ItemKind::Ice
-            | ItemKind::SnowBlock
-            | ItemKind::Clay
             | ItemKind::Netherrack
-            | ItemKind::SoulSand
-            | ItemKind::SoulSoil
             | ItemKind::Basalt
             | ItemKind::PolishedBasalt
             | ItemKind::SmoothBasalt
@@ -157,7 +137,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::BrickStairs
             | ItemKind::StoneBrickStairs
             | ItemKind::MudBrickStairs
-            | ItemKind::Mycelium
             | ItemKind::NetherBricks
             | ItemKind::CrackedNetherBricks
             | ItemKind::ChiseledNetherBricks
@@ -193,8 +172,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::QuartzBricks
             | ItemKind::QuartzPillar
             | ItemKind::QuartzStairs
-            | ItemKind::PackedIce
-            | ItemKind::DirtPath
             | ItemKind::Prismarine
             | ItemKind::PrismarineBricks
             | ItemKind::DarkPrismarine
@@ -208,7 +185,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::RedSandstoneStairs
             | ItemKind::MagmaBlock
             | ItemKind::RedNetherBricks
-            | ItemKind::BlueIce
             | ItemKind::PolishedGraniteStairs
             | ItemKind::SmoothRedSandstoneStairs
             | ItemKind::MossyStoneBrickStairs
@@ -507,6 +483,129 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::CrimsonHangingSign
             | ItemKind::WarpedHangingSign => ItemCategory::Wood,
 
+            ItemKind::GrassBlock
+            | ItemKind::Dirt
+            | ItemKind::CoarseDirt
+            | ItemKind::Podzol
+            | ItemKind::RootedDirt
+            | ItemKind::Mud
+            | ItemKind::Farmland
+            | ItemKind::DirtPath
+            | ItemKind::Mycelium
+            | ItemKind::CrimsonNylium
+            | ItemKind::WarpedNylium
+            | ItemKind::SoulSand
+            | ItemKind::SoulSoil
+            | ItemKind::Sand
+            | ItemKind::SuspiciousSand
+            | ItemKind::RedSand
+            | ItemKind::Gravel
+            | ItemKind::SuspiciousGravel
+            | ItemKind::Clay
+            | ItemKind::Snow
+            | ItemKind::SnowBlock
+            | ItemKind::Ice
+            | ItemKind::PackedIce
+            | ItemKind::BlueIce
+            | ItemKind::ShortGrass
+            | ItemKind::Fern
+            | ItemKind::TallGrass
+            | ItemKind::LargeFern
+            | ItemKind::Bush
+            | ItemKind::DeadBush
+            | ItemKind::FireflyBush
+            | ItemKind::ShortDryGrass
+            | ItemKind::TallDryGrass
+            | ItemKind::Azalea
+            | ItemKind::FloweringAzalea
+            | ItemKind::MossBlock
+            | ItemKind::MossCarpet
+            | ItemKind::PaleMossBlock
+            | ItemKind::PaleMossCarpet
+            | ItemKind::PaleHangingMoss
+            | ItemKind::GlowLichen
+            | ItemKind::HangingRoots
+            | ItemKind::BigDripleaf
+            | ItemKind::SmallDripleaf
+            | ItemKind::SugarCane
+            | ItemKind::Cactus
+            | ItemKind::CactusFlower
+            | ItemKind::Vine
+            | ItemKind::LilyPad
+            | ItemKind::Seagrass
+            | ItemKind::SeaPickle
+            | ItemKind::BrownMushroom
+            | ItemKind::RedMushroom
+            | ItemKind::CrimsonFungus
+            | ItemKind::WarpedFungus
+            | ItemKind::CrimsonRoots
+            | ItemKind::WarpedRoots
+            | ItemKind::NetherSprouts
+            | ItemKind::WeepingVines
+            | ItemKind::TwistingVines
+            | ItemKind::Dandelion
+            | ItemKind::GoldenDandelion
+            | ItemKind::OpenEyeblossom
+            | ItemKind::ClosedEyeblossom
+            | ItemKind::Poppy
+            | ItemKind::BlueOrchid
+            | ItemKind::Allium
+            | ItemKind::AzureBluet
+            | ItemKind::RedTulip
+            | ItemKind::OrangeTulip
+            | ItemKind::WhiteTulip
+            | ItemKind::PinkTulip
+            | ItemKind::OxeyeDaisy
+            | ItemKind::Cornflower
+            | ItemKind::LilyOfTheValley
+            | ItemKind::WitherRose
+            | ItemKind::Torchflower
+            | ItemKind::PitcherPlant
+            | ItemKind::SporeBlossom
+            | ItemKind::PinkPetals
+            | ItemKind::Wildflowers
+            | ItemKind::LeafLitter
+            | ItemKind::Sunflower
+            | ItemKind::Lilac
+            | ItemKind::RoseBush
+            | ItemKind::Peony
+            | ItemKind::ChorusPlant
+            | ItemKind::ChorusFlower
+            | ItemKind::Kelp
+            | ItemKind::BrownMushroomBlock
+            | ItemKind::RedMushroomBlock
+            | ItemKind::MushroomStem
+            | ItemKind::TubeCoral
+            | ItemKind::BrainCoral
+            | ItemKind::BubbleCoral
+            | ItemKind::FireCoral
+            | ItemKind::HornCoral
+            | ItemKind::DeadTubeCoral
+            | ItemKind::DeadBrainCoral
+            | ItemKind::DeadBubbleCoral
+            | ItemKind::DeadFireCoral
+            | ItemKind::DeadHornCoral
+            | ItemKind::TubeCoralBlock
+            | ItemKind::BrainCoralBlock
+            | ItemKind::BubbleCoralBlock
+            | ItemKind::FireCoralBlock
+            | ItemKind::HornCoralBlock
+            | ItemKind::DeadTubeCoralBlock
+            | ItemKind::DeadBrainCoralBlock
+            | ItemKind::DeadBubbleCoralBlock
+            | ItemKind::DeadFireCoralBlock
+            | ItemKind::DeadHornCoralBlock
+            | ItemKind::TubeCoralFan
+            | ItemKind::BrainCoralFan
+            | ItemKind::BubbleCoralFan
+            | ItemKind::FireCoralFan
+            | ItemKind::HornCoralFan
+            | ItemKind::DeadTubeCoralFan
+            | ItemKind::DeadBrainCoralFan
+            | ItemKind::DeadBubbleCoralFan
+            | ItemKind::DeadFireCoralFan
+            | ItemKind::DeadHornCoralFan => ItemCategory::Nature,
+
             ItemKind::Anvil
             | ItemKind::ChippedAnvil
             | ItemKind::DamagedAnvil
@@ -745,24 +844,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::GreenWool
             | ItemKind::RedWool
             | ItemKind::BlackWool
-            | ItemKind::BrownMushroom
-            | ItemKind::RedMushroom
-            | ItemKind::CrimsonFungus
-            | ItemKind::WarpedFungus
-            | ItemKind::CrimsonRoots
-            | ItemKind::WarpedRoots
-            | ItemKind::NetherSprouts
-            | ItemKind::WeepingVines
-            | ItemKind::TwistingVines
-            | ItemKind::SugarCane
-            | ItemKind::MossCarpet
-            | ItemKind::MossBlock
-            | ItemKind::PaleMossCarpet
-            | ItemKind::PaleHangingMoss
-            | ItemKind::PaleMossBlock
-            | ItemKind::HangingRoots
-            | ItemKind::BigDripleaf
-            | ItemKind::SmallDripleaf
             | ItemKind::DecoratedPot
             | ItemKind::Torch
             | ItemKind::EndRod
@@ -777,9 +858,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::SoulTorch
             | ItemKind::CopperTorch
             | ItemKind::Glowstone
-            | ItemKind::BrownMushroomBlock
-            | ItemKind::RedMushroomBlock
-            | ItemKind::MushroomStem
             | ItemKind::IronBars
             | ItemKind::CopperBars
             | ItemKind::ExposedCopperBars
@@ -799,7 +877,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::WaxedWeatheredCopperChain
             | ItemKind::WaxedOxidizedCopperChain
             | ItemKind::GlassPane
-            | ItemKind::GlowLichen
             | ItemKind::ResinClump
             | ItemKind::ResinBlock
             | ItemKind::ResinBricks
@@ -849,12 +926,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::RedCarpet
             | ItemKind::BlackCarpet
             | ItemKind::Terracotta
-            | ItemKind::Sunflower
-            | ItemKind::Lilac
-            | ItemKind::RoseBush
-            | ItemKind::Peony
-            | ItemKind::TallGrass
-            | ItemKind::LargeFern
             | ItemKind::WhiteStainedGlass
             | ItemKind::OrangeStainedGlass
             | ItemKind::MagentaStainedGlass
@@ -955,36 +1026,6 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::GreenConcretePowder
             | ItemKind::RedConcretePowder
             | ItemKind::BlackConcretePowder
-            | ItemKind::DeadTubeCoralBlock
-            | ItemKind::DeadBrainCoralBlock
-            | ItemKind::DeadBubbleCoralBlock
-            | ItemKind::DeadFireCoralBlock
-            | ItemKind::DeadHornCoralBlock
-            | ItemKind::TubeCoralBlock
-            | ItemKind::BrainCoralBlock
-            | ItemKind::BubbleCoralBlock
-            | ItemKind::FireCoralBlock
-            | ItemKind::HornCoralBlock
-            | ItemKind::TubeCoral
-            | ItemKind::BrainCoral
-            | ItemKind::BubbleCoral
-            | ItemKind::FireCoral
-            | ItemKind::HornCoral
-            | ItemKind::DeadBrainCoral
-            | ItemKind::DeadBubbleCoral
-            | ItemKind::DeadFireCoral
-            | ItemKind::DeadHornCoral
-            | ItemKind::DeadTubeCoral
-            | ItemKind::TubeCoralFan
-            | ItemKind::BrainCoralFan
-            | ItemKind::BubbleCoralFan
-            | ItemKind::FireCoralFan
-            | ItemKind::HornCoralFan
-            | ItemKind::DeadTubeCoralFan
-            | ItemKind::DeadBrainCoralFan
-            | ItemKind::DeadBubbleCoralFan
-            | ItemKind::DeadFireCoralFan
-            | ItemKind::DeadHornCoralFan
             | ItemKind::Conduit
             | ItemKind::Scaffolding
             | ItemKind::Redstone
@@ -1305,8 +1346,7 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
             | ItemKind::WaxedWeatheredCopperGolemStatue
             | ItemKind::WaxedOxidizedCopperGolemStatue => ItemCategory::Materials,
 
-            ItemKind::Kelp
-            | ItemKind::Pumpkin
+            ItemKind::Pumpkin
             | ItemKind::Melon
             | ItemKind::Apple
             | ItemKind::MushroomStew
@@ -1449,47 +1489,8 @@ impl ItemCategoryProfile for DefaultItemCategoryProfile {
 
             ItemKind::Air
             | ItemKind::HeavyCore
-            | ItemKind::ShortGrass
-            | ItemKind::Fern
-            | ItemKind::Bush
-            | ItemKind::Azalea
-            | ItemKind::FloweringAzalea
-            | ItemKind::DeadBush
-            | ItemKind::FireflyBush
-            | ItemKind::ShortDryGrass
-            | ItemKind::TallDryGrass
-            | ItemKind::Seagrass
-            | ItemKind::SeaPickle
-            | ItemKind::Dandelion
-            | ItemKind::GoldenDandelion
-            | ItemKind::OpenEyeblossom
-            | ItemKind::ClosedEyeblossom
-            | ItemKind::Poppy
-            | ItemKind::BlueOrchid
-            | ItemKind::Allium
-            | ItemKind::AzureBluet
-            | ItemKind::RedTulip
-            | ItemKind::OrangeTulip
-            | ItemKind::WhiteTulip
-            | ItemKind::PinkTulip
-            | ItemKind::OxeyeDaisy
-            | ItemKind::Cornflower
-            | ItemKind::LilyOfTheValley
-            | ItemKind::WitherRose
-            | ItemKind::Torchflower
-            | ItemKind::PitcherPlant
-            | ItemKind::SporeBlossom
-            | ItemKind::PinkPetals
-            | ItemKind::Wildflowers
-            | ItemKind::LeafLitter
-            | ItemKind::ChorusPlant
-            | ItemKind::ChorusFlower
             | ItemKind::Spawner
             | ItemKind::CreakingHeart
-            | ItemKind::Cactus
-            | ItemKind::CactusFlower
-            | ItemKind::Vine
-            | ItemKind::LilyPad
             | ItemKind::EndPortalFrame
             | ItemKind::DragonEgg
             | ItemKind::CommandBlock
@@ -1568,6 +1569,10 @@ mod tests {
         assert!(matches!(category(ItemKind::Stone), ItemCategory::Rocks));
         assert!(matches!(category(ItemKind::OakPlanks), ItemCategory::Wood));
         assert!(matches!(
+            category(ItemKind::GrassBlock),
+            ItemCategory::Nature
+        ));
+        assert!(matches!(
             category(ItemKind::DiamondPickaxe),
             ItemCategory::Tools
         ));
@@ -1604,5 +1609,12 @@ mod tests {
             ItemCategory::Materials
         ));
         assert!(matches!(category(ItemKind::Air), ItemCategory::Other));
+        assert!(matches!(category(ItemKind::Dirt), ItemCategory::Nature));
+        assert!(matches!(category(ItemKind::Sand), ItemCategory::Nature));
+        assert!(matches!(category(ItemKind::Poppy), ItemCategory::Nature));
+        assert!(matches!(
+            category(ItemKind::BrownMushroom),
+            ItemCategory::Nature
+        ));
     }
 }
