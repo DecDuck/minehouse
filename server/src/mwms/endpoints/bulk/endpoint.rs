@@ -46,7 +46,11 @@ impl BulkStorage {
     /// category first, then unassigned containers ordered most-central first (the
     /// one physically closest to the most other containers). Newly-allocated
     /// containers keep their `None` category until a placement commits.
-    fn find_slots(&self, category: ItemCategory, containers: &[BulkContainer]) -> Vec<ContainerSlots> {
+    fn find_slots(
+        &self,
+        category: ItemCategory,
+        containers: &[BulkContainer],
+    ) -> Vec<ContainerSlots> {
         // Containers already holding this category, with room to spare.
         let mut result: Vec<ContainerSlots> = containers
             .iter()
@@ -180,7 +184,10 @@ impl BulkStorage {
         }
         for document in self.documents.iter() {
             let id = *document.key();
-            if matches!(document.document.lock().await.header.state, TransferDocumentState::Cancelled(_)) {
+            if matches!(
+                document.document.lock().await.header.state,
+                TransferDocumentState::Cancelled(_)
+            ) {
                 continue;
             }
             for slots in document.plan.values() {
@@ -236,17 +243,18 @@ impl StorageEndpoint for BulkStorage {
             .documents
             .iter()
             .filter_map(|entry| {
-                entry.plan.values().any(|slots| {
-                    slots.iter().any(|slot_ref| {
-                        incoming
-                            .get(&slot_ref.container)
-                            .is_none_or(|container| {
+                entry
+                    .plan
+                    .values()
+                    .any(|slots| {
+                        slots.iter().any(|slot_ref| {
+                            incoming.get(&slot_ref.container).is_none_or(|container| {
                                 slot_ref.slot >= container.capacity as usize
                                     || container.contents.contains_key(&slot_ref.slot)
                             })
+                        })
                     })
-                })
-                .then_some((*entry.key(), entry.document.clone()))
+                    .then_some((*entry.key(), entry.document.clone()))
             })
             .collect();
         let cancelled_documents: HashSet<_> = invalid_documents.iter().map(|(id, _)| *id).collect();
@@ -261,7 +269,9 @@ impl StorageEndpoint for BulkStorage {
 
         // Refresh known containers while preserving valid allocation metadata.
         for entry in &mut *current {
-            entry.container = incoming.remove(&entry.container.id).expect("retained incoming container");
+            entry.container = incoming
+                .remove(&entry.container.id)
+                .expect("retained incoming container");
             if entry.category.is_none() {
                 entry.category = entry.container.categorize(&self.profile);
             }
@@ -284,7 +294,10 @@ impl StorageEndpoint for BulkStorage {
         }
 
         // Report the resulting endpoint inventory.
-        let unallocated = current.iter().filter(|entry| entry.category.is_none()).count();
+        let unallocated = current
+            .iter()
+            .filter(|entry| entry.category.is_none())
+            .count();
         tracing::debug!(
             region = %self.region.id,
             containers = current.len(),
@@ -361,7 +374,13 @@ fn centrality(entry: &BulkContainer, all: &[BulkContainer]) -> f64 {
 
 /// Euclidean distance between the centres of two container bounding boxes.
 fn distance(a: &Cube, b: &Cube) -> f64 {
-    let centre = |c: &Cube| ((c.x1 + c.x2) / 2.0, (c.y1 + c.y2) / 2.0, (c.z1 + c.z2) / 2.0);
+    let centre = |c: &Cube| {
+        (
+            (c.x1 + c.x2) / 2.0,
+            (c.y1 + c.y2) / 2.0,
+            (c.z1 + c.z2) / 2.0,
+        )
+    };
     let (ax, ay, az) = centre(a);
     let (bx, by, bz) = centre(b);
     ((ax - bx).powi(2) + (ay - by).powi(2) + (az - bz).powi(2)).sqrt()
@@ -518,7 +537,9 @@ mod tests {
         ));
 
         let duplicate = container(region.id, 1, HashMap::new());
-        let duplicate_copy = Container { ..duplicate.clone() };
+        let duplicate_copy = Container {
+            ..duplicate.clone()
+        };
         assert!(matches!(
             storage.reindex(vec![duplicate, duplicate_copy]).await,
             Err(StorageEndpointError::DuplicateContainerId)

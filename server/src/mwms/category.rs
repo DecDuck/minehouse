@@ -13,14 +13,14 @@ pub enum ItemCategory {
     Nature,
     // All tools, and enchantment books
     Tools,
-    // Materials, including valuables. Diamonds, gold, iron, etc etc, including nuggets. 
+    // Materials, including valuables. Diamonds, gold, iron, etc etc, including nuggets.
     Materials,
     // All food
     Food,
     // All mob drops that haven't been covered by other categories, like gunpowder or string. Mob drops like iron and carrots should go in other categories
     MobDrops,
     // Everything that doesn't have a place
-    Other,   
+    Other,
 }
 
 #[enum_dispatch]

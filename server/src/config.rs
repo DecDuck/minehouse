@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-
 #[derive(Deserialize)]
 pub struct MinehouseConfig {
     pub api_bind_addr: String,

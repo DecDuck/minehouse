@@ -3,9 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use common::{
-    ids::{ClientId, WorkUnitId}, rpc::{MinehouseError, MinehouseServer}, work::{WorkUnit, WorkUnitDone},
-};
+use common::{ids::{ClientId, WorkUnitId}, rpc::{MinehouseError, MinehouseServer}, work::{WorkUnit, WorkUnitDone}};
 use tarpc::context::Context;
 
 use crate::state::MinehouseState;

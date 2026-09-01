@@ -1,8 +1,6 @@
 use std::{sync::Arc, time::Instant};
 
-use common::{
-    ids::{ClientId, WorkUnitId}, rpc::MinehouseError, sync::DropLockAndNotify, work::{WorkUnit, WorkUnitDone},
-};
+use common::{ids::{ClientId, WorkUnitId}, rpc::MinehouseError, sync::DropLockAndNotify, work::{WorkUnit, WorkUnitDone}};
 use dashmap::DashMap;
 
 pub struct WorkUnitPool {
@@ -60,7 +58,6 @@ impl WorkUnitPool {
         };
 
         guard.wait_finished().await;
-
         Ok(())
     }
 
@@ -81,7 +78,6 @@ impl WorkUnitPool {
             return Err(MinehouseError::NotLocked);
         }
         scheduled_wu.work_unit = wu;
-
 
         Ok(())
     }
