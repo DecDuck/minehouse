@@ -67,6 +67,19 @@ impl<T> DropLockAndNotify<T> {
         }
     }
 
+    pub async fn wait_finished(&self) {
+        loop {
+            let mut notified = Box::pin(self.finished_notify.notified());
+            notified.as_mut().enable();
+
+            if self.finished() {
+                return;
+            }
+
+            notified.await;
+        }
+    }
+
     fn guard_release(&self) {
         let mut inner = self.inner.lock().unwrap();
         *inner = None;
@@ -80,16 +93,7 @@ pub struct DropLockAndNotifyGuard<'a, T> {
 
 impl<'a, T> DropLockAndNotifyGuard<'a, T> {
     pub async fn wait_finished(&self) {
-        loop {
-            let mut notified = Box::pin(self.drop_lock_and_notify.finished_notify.notified());
-            notified.as_mut().enable();
-
-            if self.drop_lock_and_notify.finished() {
-                return;
-            }
-
-            notified.await;
-        }
+        self.drop_lock_and_notify.wait_finished().await;
     }
 }
 

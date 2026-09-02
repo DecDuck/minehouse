@@ -14,3 +14,9 @@ impl ClientId {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 #[repr(transparent)]
 pub struct WorkUnitId(Uuid);
+
+impl WorkUnitId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+}

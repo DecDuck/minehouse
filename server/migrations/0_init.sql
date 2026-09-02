@@ -15,10 +15,10 @@ create table container_region (
 );
 
 create table container (
-    id uuid primary key default gen_random_uuid (),
+    id uuid not null unique default gen_random_uuid (),
     region_id uuid not null,
     constraint pk_region_id foreign key (region_id) references container_region (id) on delete cascade,
-    position cube not null,
+    position cube primary key,
     -- Number of inventory slots this container block exposes
     capacity integer not null check (capacity > 0)
 );

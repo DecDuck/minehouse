@@ -16,6 +16,8 @@ pub enum MinehouseError {
     DeadlineTooShort,
     #[error("not your work unit")]
     NotYourWorkUnit,
+    #[error("timed out waiting for work unit")]
+    WorkUnitTimeout,
     #[error("sqlx error: {0}")]
     SqlxError(String),
 }

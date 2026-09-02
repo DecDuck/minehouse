@@ -84,6 +84,10 @@ impl StorageEndpoint for PutawayStorage {
         self.id
     }
 
+    fn region_id(&self) -> uuid::Uuid {
+        self.region.id
+    }
+
     async fn reindex(&self, containers: Vec<Container>) -> Result<(), StorageEndpointError> {
         let mut incoming = HashMap::with_capacity(containers.len());
         for container in containers {

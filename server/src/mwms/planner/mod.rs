@@ -13,6 +13,7 @@ use crate::{
 
 pub use queue::InspectableQueue;
 pub use request::PlannerRequest;
+pub mod index_regions;
 
 /// Inspectable queue of pending [`PlannerRequest`]s: push from any task, snapshot for a UI.
 pub type PlannerQueue = InspectableQueue<PlannerRequest>;
@@ -47,20 +48,23 @@ impl Planner {
 
         loop {
             interval.tick().await;
-            self.tick();
+            self.tick().await;
         }
     }
 
     /// Runs a single planning pass: drains the request queue and acts on each request.
-    fn tick(&self) {
+    async fn tick(&self) {
         while let Some(request) = self.queue.pop() {
-            self.handle_request(request);
+            self.handle_request(request).await;
         }
     }
 
-    fn handle_request(&self, request: PlannerRequest) {
+    async fn handle_request(&self, request: PlannerRequest) -> Result<(), anyhow::Error> {
         match request {
-            
-        }
+            PlannerRequest::IndexRegions => {
+                self.index_regions().await?;
+            }
+        };
+        Ok(())
     }
 }

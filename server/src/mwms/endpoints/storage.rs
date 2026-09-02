@@ -26,13 +26,20 @@ impl StorageEndpoints {
 
 impl StorageEndpoint for StorageEndpoints {
     fn new(region: ContainerRegion) -> Self {
-        Self::bulk(region)
+        panic!("can't create a generic region")
     }
 
     fn id(&self) -> StorageEndpointId {
         match self {
             Self::Bulk(storage) => storage.id(),
             Self::Putaway(storage) => storage.id(),
+        }
+    }
+
+    fn region_id(&self) -> uuid::Uuid {
+        match self {
+            StorageEndpoints::Bulk(bulk_storage) => bulk_storage.region_id(),
+            StorageEndpoints::Putaway(putaway_storage) => putaway_storage.region_id(),
         }
     }
 

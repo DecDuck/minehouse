@@ -1,5 +1,7 @@
 use std::hash::BuildHasher;
 
+use uuid::Uuid;
+
 use crate::{
     db::{container::Container, container_region::ContainerRegion}, mwms::transfer::{document::TransferDocumentHandle, request::TransferRequest},
 };
@@ -33,6 +35,8 @@ pub trait StorageEndpoint {
     fn new(region: ContainerRegion) -> Self;
     /// Randomly generated ID, static throughout the lifetime of the program
     fn id(&self) -> StorageEndpointId;
+    /// Region ID
+    fn region_id(&self) -> Uuid;
 
     /// Passed from a re-index job, this is the new authoriative list of containers
     fn reindex(

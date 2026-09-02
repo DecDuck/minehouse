@@ -223,6 +223,10 @@ impl StorageEndpoint for BulkStorage {
         self.id
     }
 
+    fn region_id(&self) -> Uuid {
+        self.region.id
+    }
+
     async fn reindex(&self, containers: Vec<Container>) -> Result<(), StorageEndpointError> {
         // Validate the snapshot before changing endpoint state.
         let mut incoming = HashMap::with_capacity(containers.len());
