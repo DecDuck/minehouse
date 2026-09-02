@@ -25,7 +25,7 @@ impl StorageEndpoints {
 }
 
 impl StorageEndpoint for StorageEndpoints {
-    fn new(region: ContainerRegion) -> Self {
+    fn new(_region: ContainerRegion) -> Self {
         panic!("can't create a generic region")
     }
 

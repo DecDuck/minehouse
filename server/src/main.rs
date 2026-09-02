@@ -12,9 +12,12 @@ use tokio::{join, net::TcpListener};
 use tracing::info;
 
 use crate::{
-    config::load_config, db::DatabaseHandle,
+    config::load_config,
+    db::DatabaseHandle,
     mwms::planner::{Planner, PlannerQueue},
-    rpc::server::MinehouseServerImpl, state::MinehouseState, work::pool::WorkUnitPool,
+    rpc::server::MinehouseServerImpl,
+    state::MinehouseState,
+    work::pool::WorkUnitPool,
 };
 
 pub mod api;
@@ -48,7 +51,7 @@ async fn main() -> Result<(), anyhow::Error> {
     server.openapi.info.title = format!("Minehouse");
 
     let server = server
-        // Add routes here
+        .post("/api/v1/queue", api::queue_request)
         // End routes here
         ;
 
@@ -66,11 +69,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let work_unit_pool = Arc::new(WorkUnitPool::new());
 
-    let app_state = Arc::new(MinehouseState::new(db_handle, work_unit_pool));
+    let planner_queue = PlannerQueue::new();
+    let app_state = Arc::new(MinehouseState::new(
+        db_handle,
+        work_unit_pool,
+        planner_queue.clone(),
+    ));
     let server_app_state = app_state.clone();
 
     // Handle for submitting planner requests from any task / inspecting in a UI.
-    let planner_queue = PlannerQueue::new();
     tokio::spawn(Planner::new(app_state.clone(), planner_queue.clone()).run());
 
     let app = Router::new()
