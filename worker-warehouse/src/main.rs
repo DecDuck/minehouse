@@ -1,17 +1,16 @@
 use bevy_ecs::component::Component;
-use common::work::{WorkUnit, WorkUnitData};
 use tokio::task::spawn_blocking;
 use tracing::info;
-use worker_core::{config::load_config, control::ControlClient};
+use worker_core::{client::WorkUnitClient, config::load_config, tick::WorkerController};
 
-use crate::config::WarehouseWorkerConfig;
+use crate::{config::WarehouseWorkerConfig, imple::WarehouseWorker};
 
 pub mod config;
+pub mod imple;
+pub mod index_region;
 
 #[derive(Clone, Component, Default)]
-pub struct WarehouseWorkerState {
-
-}
+pub struct WarehouseWorkerState {}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), anyhow::Error> {
@@ -36,12 +35,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let state = WarehouseWorkerState {};
 
-    let (mc_client, control_client) = config.worker.create(state, async |client, event, state| {
-        
-    }).await?;
-    let control_client = ControlClient::new(control_client);
+    let (mc_client, control_client) = config
+        .worker
+        .create(state, async |client, event, state| {})
+        .await?;
+    let control_client = WorkUnitClient::new(control_client);
 
-    let wu = control_client.accept_new(|v| matches!(v.data, WorkUnitData::IndexContainer(..))).await?;
+    let control_loop = WorkerController::<WarehouseWorker>::new(control_client, mc_client);
+
+    control_loop.run().await;
 
     Ok(())
 }

@@ -4,14 +4,14 @@ use common::{rpc::MinehouseServerClient, work::WorkUnit};
 use tarpc::context;
 use tokio::{sync::Mutex, task::JoinHandle};
 
-pub struct ControlClient {
+pub struct WorkUnitClient {
     /// tarpc client
     client: MinehouseServerClient,
     /// current wu
     work_unit: Mutex<Option<(WorkUnit, JoinHandle<Result<(), anyhow::Error>>)>>,
 }
 
-impl ControlClient {
+impl WorkUnitClient {
     pub fn new(client: MinehouseServerClient) -> Self {
         Self {
             client,
@@ -47,5 +47,13 @@ impl ControlClient {
     pub async fn read(&self) -> Option<WorkUnit> {
         let wu_lock = self.work_unit.lock().await;
         wu_lock.as_ref().map(|v| v.0.clone())
+    }
+
+    pub async fn submit(&self, work_unit: WorkUnit) -> Result<bool, anyhow::Error> {
+        let client = self.client.clone();
+        let is_done = client
+            .submit_work_unit(context::current(), work_unit)
+            .await??;
+        Ok(is_done)
     }
 }
