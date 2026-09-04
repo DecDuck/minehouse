@@ -1,19 +1,58 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
     pub z: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct PointRegion {
     pub pos1: Point,
     pub pos2: Point,
 }
 
 impl PointRegion {
+    pub fn intersection(&self, other: &Self) -> Option<Self> {
+        let pos1 = Point {
+            x: self
+                .pos1
+                .x
+                .min(self.pos2.x)
+                .max(other.pos1.x.min(other.pos2.x)),
+            y: self
+                .pos1
+                .y
+                .min(self.pos2.y)
+                .max(other.pos1.y.min(other.pos2.y)),
+            z: self
+                .pos1
+                .z
+                .min(self.pos2.z)
+                .max(other.pos1.z.min(other.pos2.z)),
+        };
+        let pos2 = Point {
+            x: self
+                .pos1
+                .x
+                .max(self.pos2.x)
+                .min(other.pos1.x.max(other.pos2.x)),
+            y: self
+                .pos1
+                .y
+                .max(self.pos2.y)
+                .min(other.pos1.y.max(other.pos2.y)),
+            z: self
+                .pos1
+                .z
+                .max(self.pos2.z)
+                .min(other.pos1.z.max(other.pos2.z)),
+        };
+
+        (pos1.x <= pos2.x && pos1.y <= pos2.y && pos1.z <= pos2.z).then_some(Self { pos1, pos2 })
+    }
+
     pub fn covered_chunks(&self) -> Vec<PointRegion> {
         const CHUNK_SIZE: f64 = 16.0;
 
@@ -108,5 +147,49 @@ mod tests {
         assert_eq!(chunks[0].pos1.z, -16.0);
         assert_eq!(chunks[8].pos1.x, 16.0);
         assert_eq!(chunks[8].pos1.z, 16.0);
+    }
+
+    #[test]
+    fn intersection_clips_chunk_to_region_bounds() {
+        let region = PointRegion {
+            pos1: Point {
+                x: 3.0,
+                y: 5.0,
+                z: 4.0,
+            },
+            pos2: Point {
+                x: 18.0,
+                y: 10.0,
+                z: 20.0,
+            },
+        };
+        let chunk = PointRegion {
+            pos1: Point {
+                x: 0.0,
+                y: 5.0,
+                z: 0.0,
+            },
+            pos2: Point {
+                x: 15.0,
+                y: 10.0,
+                z: 15.0,
+            },
+        };
+
+        assert_eq!(
+            region.intersection(&chunk),
+            Some(PointRegion {
+                pos1: Point {
+                    x: 3.0,
+                    y: 5.0,
+                    z: 4.0,
+                },
+                pos2: Point {
+                    x: 15.0,
+                    y: 10.0,
+                    z: 15.0,
+                },
+            })
+        );
     }
 }

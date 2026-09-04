@@ -1,13 +1,14 @@
-use common::{
-    vec::Point,
-    work_units::index_region::IndexChunkWorkUnitContainer,
-};
+use common::{vec::Point, work_units::index_region::IndexChunkWorkUnitContainer};
+use serde::{Deserialize, Serialize};
 use sqlx::{postgres::types::PgCube, types::Uuid};
 
 use super::{Cube, DatabaseHandle};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, oasgen::OaSchema, sqlx::Type,
+)]
 #[sqlx(type_name = "region_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum RegionType {
     Bulk,
     Pickface,
@@ -37,6 +38,71 @@ impl DatabaseHandle {
         .await
     }
 
+    pub async fn fetch_region(&self, id: Uuid) -> Result<Option<ContainerRegion>, sqlx::Error> {
+        sqlx::query_as!(
+            ContainerRegion,
+            r#"select
+                id,
+                type as "type: RegionType",
+                world_region as "world_region: Cube"
+            from container_region
+            where id = $1"#,
+            id,
+        )
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn create_region(
+        &self,
+        region_type: RegionType,
+        world_region: Cube,
+    ) -> Result<ContainerRegion, sqlx::Error> {
+        sqlx::query_as!(
+            ContainerRegion,
+            r#"insert into container_region (type, world_region)
+               values ($1, $2)
+               returning
+                   id,
+                   type as "type: RegionType",
+                   world_region as "world_region: Cube""#,
+            region_type as RegionType,
+            cube_to_pg_cube(world_region),
+        )
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn update_region(
+        &self,
+        id: Uuid,
+        region_type: RegionType,
+        world_region: Cube,
+    ) -> Result<Option<ContainerRegion>, sqlx::Error> {
+        sqlx::query_as!(
+            ContainerRegion,
+            r#"update container_region
+               set type = $2, world_region = $3
+               where id = $1
+               returning
+                   id,
+                   type as "type: RegionType",
+                   world_region as "world_region: Cube""#,
+            id,
+            region_type as RegionType,
+            cube_to_pg_cube(world_region),
+        )
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn delete_region(&self, id: Uuid) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query!("delete from container_region where id = $1", id)
+            .execute(&self.pool)
+            .await?;
+        Ok(result.rows_affected() == 1)
+    }
+
     pub async fn sync_region_containers(
         &self,
         region_id: Uuid,
@@ -62,7 +128,9 @@ impl DatabaseHandle {
             sqlx::query!(
                 r#"insert into container (region_id, position, capacity)
                    values ($1, $2, $3)
-                   on conflict (position) do nothing"#,
+                   on conflict (position) do update
+                   set region_id = excluded.region_id,
+                       capacity = excluded.capacity"#,
                 region_id,
                 position,
                 capacity,

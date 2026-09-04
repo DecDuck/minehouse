@@ -52,6 +52,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let server = server
         .post("/api/v1/queue", api::queue_request)
+        .get("/api/v1/regions", api::list_regions)
+        .post("/api/v1/regions", api::create_region)
+        .get("/api/v1/regions/{id}", api::get_region)
+        .put("/api/v1/regions/{id}", api::update_region)
+        .delete("/api/v1/regions/{id}", api::delete_region)
         // End routes here
         ;
 

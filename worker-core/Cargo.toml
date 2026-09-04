@@ -5,6 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.104"
+arc-swap = "1.7.1"
 azalea = { git = "https://github.com/azalea-rs/azalea.git", default-features = false, features = [
     "serde",
     "online-mode",

@@ -5,6 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 use dashmap::DashMap;
 use tokio::time::{self, MissedTickBehavior};
+use tracing::error;
 
 use crate::{
     mwms::{endpoints::StorageEndpoints, storage::StorageEndpointId},
@@ -55,7 +56,9 @@ impl Planner {
     /// Runs a single planning pass: drains the request queue and acts on each request.
     async fn tick(&self) {
         while let Some(request) = self.queue.pop() {
-            self.handle_request(request).await;
+            if let Err(error) = self.handle_request(request).await {
+                error!(?error, "planner request failed");
+            }
         }
     }
 

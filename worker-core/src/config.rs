@@ -1,11 +1,9 @@
 use std::future::Future;
 
 use azalea::{Client, Event, ecs::component::Component};
-use common::rpc::MinehouseServerClient;
 use serde::Deserialize;
-use tarpc::{client, serde_transport, tokio_serde::formats::Bincode};
 
-use crate::account::Account;
+use crate::{account::Account, client::ReconnectingMinehouseClient};
 
 #[derive(Deserialize)]
 pub struct WorkerConfig {
@@ -19,7 +17,7 @@ impl WorkerConfig {
         self,
         state: S,
         handler: H,
-    ) -> Result<(Client, MinehouseServerClient), anyhow::Error>
+    ) -> Result<(Client, ReconnectingMinehouseClient), anyhow::Error>
     where
         S: Default + Send + Sync + Clone + Component + 'static,
         H: Fn(Client, Event, S) -> Fut + Send + 'static,
@@ -41,11 +39,7 @@ impl WorkerConfig {
             }
         });
 
-        let mut transport = serde_transport::tcp::connect(self.control_endpoint, Bincode::default);
-        transport.config_mut().max_frame_length(usize::MAX);
-        let transport = transport.await?;
-        let server_client =
-            MinehouseServerClient::new(client::Config::default(), transport).spawn();
+        let server_client = ReconnectingMinehouseClient::connect(self.control_endpoint).await?;
 
         Ok((client, server_client))
     }

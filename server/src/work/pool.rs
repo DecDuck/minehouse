@@ -1,12 +1,13 @@
-use std::{sync::Arc, time::Instant};
+use std::time::Instant;
 
 use common::{
     ids::{ClientId, WorkUnitId},
     rpc::MinehouseError,
-    sync::DropLockAndNotify,
     work::{WorkUnit, WorkUnitDone},
 };
 use dashmap::DashMap;
+use tokio::sync::watch;
+use tracing::info;
 
 pub struct WorkUnitPool {
     pool: DashMap<WorkUnitId, ScheduledWorkUnit>,
@@ -20,16 +21,21 @@ impl WorkUnitPool {
     }
 
     pub fn queue_work_unit(&self, work_unit: WorkUnit, priority: Option<usize>) {
+        let (finished, _) = watch::channel(work_unit.is_done());
+        let work_unit_id = work_unit.id;
+        let priority = priority.unwrap_or(0);
         if let Some(_) = self.pool.insert(
-            work_unit.id,
+            work_unit_id,
             ScheduledWorkUnit {
-                priority: priority.unwrap_or(0),
+                priority,
                 work_unit,
-                assigned_to: Arc::new(DropLockAndNotify::new()),
+                assigned_to: None,
+                finished,
             },
         ) {
             panic!("UUIDv4 collision: buy a lottery ticket")
         }
+        info!(?work_unit_id, priority, "work unit created");
     }
 
     pub fn work_units(&self) -> Vec<WorkUnit> {
@@ -40,7 +46,7 @@ impl WorkUnitPool {
         let mut units: Vec<_> = self
             .pool
             .iter()
-            .filter(|v| v.assigned_to.read().is_none() && !v.work_unit.is_done())
+            .filter(|v| v.assigned_to.is_none() && !v.work_unit.is_done())
             .map(|r| r.clone())
             .collect();
         units.sort_by_key(|a| a.priority);
@@ -49,22 +55,35 @@ impl WorkUnitPool {
         units
     }
 
-    pub async fn lock_work_unit(
+    pub fn claim_work_unit(
         &self,
         id: &WorkUnitId,
         client_id: &ClientId,
     ) -> Result<(), MinehouseError> {
-        let assigned_to = self
+        let mut scheduled_wu = self
             .pool
-            .get(id)
-            .map(|wu| Arc::clone(&wu.assigned_to))
+            .get_mut(id)
             .ok_or(MinehouseError::WorkUnitNotFound)?;
-        let Some(guard) = assigned_to.lock(*client_id).await else {
+        if scheduled_wu.work_unit.is_done() {
             return Err(MinehouseError::AlreadyLocked);
-        };
+        }
 
-        guard.wait_finished().await;
-        Ok(())
+        match scheduled_wu.assigned_to {
+            None => {
+                scheduled_wu.assigned_to = Some(*client_id);
+                Ok(())
+            }
+            Some(assigned_client) if assigned_client == *client_id => Ok(()),
+            Some(_) => Err(MinehouseError::AlreadyLocked),
+        }
+    }
+
+    pub fn release_client(&self, client_id: &ClientId) {
+        for mut scheduled_wu in self.pool.iter_mut() {
+            if scheduled_wu.assigned_to == Some(*client_id) {
+                scheduled_wu.assigned_to = None;
+            }
+        }
     }
 
     pub async fn submit_work_unit(
@@ -76,7 +95,7 @@ impl WorkUnitPool {
             .pool
             .get_mut(&wu.id)
             .ok_or(MinehouseError::WorkUnitNotFound)?;
-        if let Some(assigned_client) = scheduled_wu.assigned_to.read() {
+        if let Some(assigned_client) = scheduled_wu.assigned_to {
             if assigned_client != *client_id {
                 return Err(MinehouseError::NotYourWorkUnit);
             }
@@ -85,7 +104,9 @@ impl WorkUnitPool {
         }
         scheduled_wu.work_unit = wu;
         if scheduled_wu.work_unit.is_done() {
-            scheduled_wu.assigned_to.mark_finished();
+            scheduled_wu.assigned_to = None;
+            scheduled_wu.finished.send_replace(true);
+            info!(work_unit_id = ?scheduled_wu.work_unit.id, ?client_id, "work unit finished");
         }
 
         Ok(())
@@ -96,18 +117,19 @@ impl WorkUnitPool {
         id: &WorkUnitId,
         deadline: Instant,
     ) -> Result<WorkUnit, MinehouseError> {
-        let assigned_to = {
+        let mut finished = {
             let scheduled_wu = self.pool.get(id).ok_or(MinehouseError::WorkUnitNotFound)?;
             if scheduled_wu.work_unit.is_done() {
                 return Ok(scheduled_wu.work_unit.clone());
             }
-            Arc::clone(&scheduled_wu.assigned_to)
+            scheduled_wu.finished.subscribe()
         };
 
         let timeout = deadline.saturating_duration_since(Instant::now());
-        tokio::time::timeout(timeout, assigned_to.wait_finished())
+        tokio::time::timeout(timeout, finished.wait_for(|finished| *finished))
             .await
-            .map_err(|_| MinehouseError::WorkUnitTimeout)?;
+            .map_err(|_| MinehouseError::WorkUnitTimeout)?
+            .map_err(|_| MinehouseError::WorkUnitNotFound)?;
 
         self.pool
             .get(id)
@@ -124,7 +146,9 @@ struct ScheduledWorkUnit {
     /// Actual work unit
     pub work_unit: WorkUnit,
     /// Worker that is workunit is assigned to
-    pub assigned_to: Arc<DropLockAndNotify<ClientId>>,
+    pub assigned_to: Option<ClientId>,
+    /// Publishes completion to tasks waiting on this work unit.
+    pub finished: watch::Sender<bool>,
 }
 
 #[cfg(test)]
@@ -186,22 +210,8 @@ mod tests {
         let id = WorkUnitId::new();
         let client_id = ClientId::new();
         pool.queue_work_unit(work_unit(id, false), None);
-
-        let lock_pool = Arc::clone(&pool);
-        let lock_client = client_id;
-        let lock_task =
-            tokio::spawn(async move { lock_pool.lock_work_unit(&id, &lock_client).await });
-
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                if pool.pool.get(&id).and_then(|unit| unit.assigned_to.read()) == Some(client_id) {
-                    break;
-                }
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .unwrap();
+        pool.claim_work_unit(&id, &client_id).unwrap();
+        assert_eq!(pool.pool.get(&id).unwrap().assigned_to, Some(client_id));
 
         let wait_pool = Arc::clone(&pool);
         let wait_task = tokio::spawn(async move {
@@ -214,9 +224,54 @@ mod tests {
             .await
             .unwrap();
 
-        lock_task.await.unwrap().unwrap();
         let completed = wait_task.await.unwrap().unwrap();
         assert!(completed.is_done());
+        assert_eq!(pool.pool.get(&id).unwrap().assigned_to, None);
+        assert!(pool.available_work_units().is_empty());
+    }
+
+    #[test]
+    fn releasing_client_makes_unfinished_work_available_again() {
+        let pool = WorkUnitPool::new();
+        let id = WorkUnitId::new();
+        let client_id = ClientId::new();
+        pool.queue_work_unit(work_unit(id, false), None);
+        pool.claim_work_unit(&id, &client_id).unwrap();
+
+        pool.release_client(&client_id);
+
+        assert_eq!(pool.available_work_units()[0].id, id);
+    }
+
+    #[test]
+    fn claim_is_idempotent_only_for_the_assigned_client() {
+        let pool = WorkUnitPool::new();
+        let id = WorkUnitId::new();
+        let client_id = ClientId::new();
+        pool.queue_work_unit(work_unit(id, false), None);
+
+        pool.claim_work_unit(&id, &client_id).unwrap();
+        pool.claim_work_unit(&id, &client_id).unwrap();
+
+        assert!(matches!(
+            pool.claim_work_unit(&id, &ClientId::new()),
+            Err(MinehouseError::AlreadyLocked)
+        ));
+    }
+
+    #[tokio::test]
+    async fn partial_submission_keeps_the_client_claim() {
+        let pool = WorkUnitPool::new();
+        let id = WorkUnitId::new();
+        let client_id = ClientId::new();
+        pool.queue_work_unit(work_unit(id, false), None);
+        pool.claim_work_unit(&id, &client_id).unwrap();
+
+        pool.submit_work_unit(work_unit(id, false), &client_id)
+            .await
+            .unwrap();
+
+        assert_eq!(pool.pool.get(&id).unwrap().assigned_to, Some(client_id));
         assert!(pool.available_work_units().is_empty());
     }
 

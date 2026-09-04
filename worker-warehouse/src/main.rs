@@ -12,9 +12,10 @@ pub mod index_region;
 #[derive(Clone, Component, Default)]
 pub struct WarehouseWorkerState {}
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main(flavor = "local")]
 async fn main() -> Result<(), anyhow::Error> {
     let subscriber = tracing_subscriber::fmt()
+        .with_env_filter("info,azalea=off")
         // Use a more compact, abbreviated log format
         .compact()
         // Display source code file paths

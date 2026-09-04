@@ -1,18 +1,105 @@
-use std::time::{Duration, Instant};
+use std::sync::Arc;
 
-use common::{rpc::MinehouseServerClient, work::WorkUnit};
-use tarpc::context;
-use tokio::{sync::Mutex, task::JoinHandle};
+use arc_swap::ArcSwap;
+use common::{
+    ids::WorkUnitId,
+    rpc::{MinehouseError, MinehouseServerClient},
+    work::WorkUnit,
+};
+use tarpc::{context, serde_transport, tokio_serde::formats::Bincode};
+use tokio::sync::Mutex;
+use tracing::info;
+
+#[derive(Clone)]
+pub struct ReconnectingMinehouseClient {
+    endpoint: String,
+    client: Arc<ArcSwap<MinehouseServerClient>>,
+}
+
+impl ReconnectingMinehouseClient {
+    pub async fn connect(endpoint: String) -> Result<Self, anyhow::Error> {
+        let client = Self::connect_once(&endpoint).await?;
+        Ok(Self {
+            endpoint,
+            client: Arc::new(ArcSwap::from_pointee(client)),
+        })
+    }
+
+    async fn connect_once(endpoint: &str) -> Result<MinehouseServerClient, anyhow::Error> {
+        let mut transport = serde_transport::tcp::connect(endpoint.to_owned(), Bincode::default);
+        transport.config_mut().max_frame_length(usize::MAX);
+        let transport = transport.await?;
+        Ok(MinehouseServerClient::new(tarpc::client::Config::default(), transport).spawn())
+    }
+
+    async fn reconnect(&self) -> Result<(), anyhow::Error> {
+        let client = Self::connect_once(&self.endpoint).await?;
+        self.client.store(Arc::new(client));
+        Ok(())
+    }
+
+    fn current(&self) -> Arc<MinehouseServerClient> {
+        self.client.load_full()
+    }
+
+    pub async fn poll_work(&self) -> Result<Vec<WorkUnit>, anyhow::Error> {
+        let result = self.current().poll_work(context::current()).await;
+        match result {
+            Ok(work) => Ok(work),
+            Err(_error) => {
+                self.reconnect().await?;
+                Ok(self.current().poll_work(context::current()).await?)
+            }
+        }
+    }
+
+    pub async fn claim_work(
+        &self,
+        id: WorkUnitId,
+    ) -> Result<Result<(), MinehouseError>, anyhow::Error> {
+        let result = self.current().claim_work(context::current(), id).await;
+        match result {
+            Ok(result) => Ok(result),
+            Err(_error) => {
+                self.reconnect().await?;
+                Ok(self.current().claim_work(context::current(), id).await?)
+            }
+        }
+    }
+
+    pub async fn submit_work_unit(
+        &self,
+        work_unit: WorkUnit,
+    ) -> Result<Result<bool, MinehouseError>, anyhow::Error> {
+        let result = self
+            .current()
+            .submit_work_unit(context::current(), work_unit.clone())
+            .await;
+        match result {
+            Ok(result) => Ok(result),
+            Err(_error) => {
+                self.reconnect().await?;
+                if let Err(error) = self.claim_work(work_unit.id).await? {
+                    return Ok(Err(error));
+                }
+                Ok(self
+                    .current()
+                    .submit_work_unit(context::current(), work_unit)
+                    .await?)
+            }
+        }
+    }
+}
 
 pub struct WorkUnitClient {
     /// tarpc client
-    client: MinehouseServerClient,
+    client: ReconnectingMinehouseClient,
     /// current wu
-    work_unit: Mutex<Option<(WorkUnit, JoinHandle<Result<(), anyhow::Error>>)>>,
+    work_unit: Mutex<Option<WorkUnit>>,
 }
 
 impl WorkUnitClient {
-    pub fn new(client: MinehouseServerClient) -> Self {
+    pub fn new(client: ReconnectingMinehouseClient) -> Self {
         Self {
             client,
             work_unit: Mutex::new(None),
@@ -23,37 +110,49 @@ impl WorkUnitClient {
     where
         F: Fn(&WorkUnit) -> bool,
     {
-        let available = self.client.poll_work(context::current()).await?;
+        if let Some(current) = self.read().await {
+            self.client.claim_work(current.id).await??;
+            return Ok(Some(current));
+        }
+
+        let available = self.client.poll_work().await?;
         let Some(chosen) = available.into_iter().find(predicate) else {
             return Ok(None);
         };
 
-        let mut lock_context = context::current();
-        lock_context.deadline = Instant::now() + Duration::from_hours(24);
+        self.client.claim_work(chosen.id).await??;
 
-        let client = self.client.clone();
         let work_unit_id = chosen.id;
-        let lock_task_handle = tokio::spawn(async move {
-            client.lock_work(lock_context, work_unit_id).await??;
-            Ok(())
-        });
-
         let mut wu_lock = self.work_unit.lock().await;
-        *wu_lock = Some((chosen, lock_task_handle));
+        *wu_lock = Some(chosen);
+        info!(?work_unit_id, "picked up work unit");
 
-        Ok(Some(wu_lock.as_ref().unwrap().0.clone()))
+        Ok(wu_lock.clone())
     }
 
     pub async fn read(&self) -> Option<WorkUnit> {
         let wu_lock = self.work_unit.lock().await;
-        wu_lock.as_ref().map(|v| v.0.clone())
+        wu_lock.clone()
     }
 
     pub async fn submit(&self, work_unit: WorkUnit) -> Result<bool, anyhow::Error> {
-        let client = self.client.clone();
-        let is_done = client
-            .submit_work_unit(context::current(), work_unit)
-            .await??;
+        let mut wu_lock = self.work_unit.lock().await;
+        let Some(current) = wu_lock.as_ref() else {
+            anyhow::bail!("cannot submit work unit without an active claim")
+        };
+        if current.id != work_unit.id {
+            anyhow::bail!("cannot submit a work unit other than the currently claimed unit")
+        }
+
+        let work_unit_id = work_unit.id;
+        let is_done = self.client.submit_work_unit(work_unit.clone()).await??;
+        if is_done {
+            *wu_lock = None;
+            info!(?work_unit_id, "finished work unit");
+        } else {
+            *wu_lock = Some(work_unit);
+            info!(?work_unit_id, "updated work unit");
+        }
         Ok(is_done)
     }
 }

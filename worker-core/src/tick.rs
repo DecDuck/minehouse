@@ -52,6 +52,10 @@ where
     }
 
     async fn tick(&self) -> Result<(), anyhow::Error> {
+        if !self.mc_client.logged_in() {
+            return Ok(());
+        }
+
         let Some(work_unit) = self.client.accept_new(T::can_accept).await? else {
             return Ok(());
         };

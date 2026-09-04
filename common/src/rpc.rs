@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use uuid::Uuid;
 
 use crate::{ids::WorkUnitId, work::WorkUnit};
 
@@ -12,8 +11,6 @@ pub enum MinehouseError {
     AlreadyLocked,
     #[error("work  unit not locked")]
     NotLocked,
-    #[error("deadline too short")]
-    DeadlineTooShort,
     #[error("not your work unit")]
     NotYourWorkUnit,
     #[error("timed out waiting for work unit")]
@@ -32,8 +29,8 @@ impl From<sqlx::Error> for MinehouseError {
 pub trait MinehouseServer {
     /// Polls for more work to do
     async fn poll_work() -> Vec<WorkUnit>;
-    /// Locks a workunit for only this client work on. Long-polling, will only return once work is done or lock is lost
-    async fn lock_work(id: WorkUnitId) -> Result<(), MinehouseError>;
+    /// Claims a work unit for this client.
+    async fn claim_work(id: WorkUnitId) -> Result<(), MinehouseError>;
     /// Submits a workunit. Returns false if there's still more to do
     async fn submit_work_unit(unit: WorkUnit) -> Result<bool, MinehouseError>;
     /// Heartbeats the client
