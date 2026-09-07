@@ -11,6 +11,9 @@ const TICK_INTERVAL: Duration = Duration::from_millis(20);
 
 pub trait WorkerControlLoop {
     fn can_accept(wu: &WorkUnit) -> bool;
+    fn select_work(work_units: Vec<WorkUnit>, _mc_client: &Client) -> Option<WorkUnit> {
+        work_units.into_iter().find(Self::can_accept)
+    }
     fn work(
         wu: WorkUnit,
         client: &WorkUnitClient,
@@ -56,7 +59,11 @@ where
             return Ok(());
         }
 
-        let Some(work_unit) = self.client.accept_new(T::can_accept).await? else {
+        let Some(work_unit) = self
+            .client
+            .accept_new(|work_units| T::select_work(work_units, &self.mc_client))
+            .await?
+        else {
             return Ok(());
         };
 

@@ -4,7 +4,7 @@ use arc_swap::ArcSwap;
 use common::{
     ids::WorkUnitId,
     rpc::{MinehouseError, MinehouseServerClient},
-    work::WorkUnit,
+    work::{WorkUnit, WorkUnitDone},
 };
 use tarpc::{context, serde_transport, tokio_serde::formats::Bincode};
 use tokio::sync::Mutex;
@@ -79,8 +79,10 @@ impl ReconnectingMinehouseClient {
             Ok(result) => Ok(result),
             Err(_error) => {
                 self.reconnect().await?;
-                if let Err(error) = self.claim_work(work_unit.id).await? {
-                    return Ok(Err(error));
+                match self.claim_work(work_unit.id).await? {
+                    Ok(()) => {}
+                    Err(MinehouseError::AlreadyLocked) if work_unit.is_done() => {}
+                    Err(error) => return Ok(Err(error)),
                 }
                 Ok(self
                     .current()
@@ -106,9 +108,9 @@ impl WorkUnitClient {
         }
     }
 
-    pub async fn accept_new<F>(&self, predicate: F) -> Result<Option<WorkUnit>, anyhow::Error>
+    pub async fn accept_new<F>(&self, select: F) -> Result<Option<WorkUnit>, anyhow::Error>
     where
-        F: Fn(&WorkUnit) -> bool,
+        F: FnOnce(Vec<WorkUnit>) -> Option<WorkUnit>,
     {
         if let Some(current) = self.read().await {
             self.client.claim_work(current.id).await??;
@@ -116,7 +118,7 @@ impl WorkUnitClient {
         }
 
         let available = self.client.poll_work().await?;
-        let Some(chosen) = available.into_iter().find(predicate) else {
+        let Some(chosen) = select(available) else {
             return Ok(None);
         };
 

@@ -3,7 +3,8 @@ use std::hash::BuildHasher;
 use uuid::Uuid;
 
 use crate::{
-    db::{container::Container, container_region::ContainerRegion}, mwms::transfer::{document::TransferDocumentHandle, request::TransferRequest},
+    db::{container::Container, container_region::ContainerRegion},
+    mwms::transfer::{document::TransferDocumentHandle, request::TransferRequest},
 };
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]

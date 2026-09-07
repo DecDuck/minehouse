@@ -8,3 +8,4 @@ mod document;
 mod endpoint;
 
 pub use endpoint::BulkStorage;
+pub(crate) use endpoint::PlannedDestination;

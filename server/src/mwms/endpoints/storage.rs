@@ -1,5 +1,8 @@
 use crate::{
-    db::{container::Container, container_region::ContainerRegion},
+    db::{
+        container::Container,
+        container_region::{ContainerRegion, RegionType},
+    },
     mwms::{
         storage::{StorageEndpoint, StorageEndpointError, StorageEndpointId},
         transfer::{document::TransferDocumentHandle, request::TransferRequest},
@@ -21,6 +24,13 @@ impl StorageEndpoints {
 
     pub fn putaway(region: ContainerRegion) -> Self {
         Self::Putaway(PutawayStorage::new(region))
+    }
+
+    pub fn region_type(&self) -> RegionType {
+        match self {
+            Self::Bulk(_) => RegionType::Bulk,
+            Self::Putaway(_) => RegionType::Putaway,
+        }
     }
 }
 

@@ -8,4 +8,6 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize, OaSchema)]
 pub enum PlannerRequest {
     IndexRegions,
+    CycleCount,
+    Putaway,
 }

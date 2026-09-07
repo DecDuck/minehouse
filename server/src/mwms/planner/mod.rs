@@ -1,20 +1,30 @@
 pub mod queue;
 pub mod request;
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use dashmap::DashMap;
 use tokio::time::{self, MissedTickBehavior};
 use tracing::error;
 
 use crate::{
-    mwms::{endpoints::StorageEndpoints, storage::StorageEndpointId},
+    db::container_region::{ContainerRegion, RegionType},
+    mwms::{
+        endpoints::StorageEndpoints,
+        storage::{StorageEndpoint, StorageEndpointId},
+    },
     state::MinehouseState,
 };
 
 pub use queue::InspectableQueue;
 pub use request::PlannerRequest;
+pub mod cycle_count;
 pub mod index_regions;
+pub mod putaway;
 
 /// Inspectable queue of pending [`PlannerRequest`]s: push from any task, snapshot for a UI.
 pub type PlannerQueue = InspectableQueue<PlannerRequest>;
@@ -37,6 +47,64 @@ impl Planner {
             endpoints: DashMap::new(),
             queue,
         }
+    }
+
+    fn sync_storage_endpoints(&self, regions: &[ContainerRegion]) {
+        let supported: HashMap<_, _> = regions
+            .iter()
+            .filter(|region| matches!(region.r#type, RegionType::Bulk | RegionType::Putaway))
+            .map(|region| (region.id, region.r#type))
+            .collect();
+        let obsolete: Vec<_> = self
+            .endpoints
+            .iter()
+            .filter(|entry| supported.get(&entry.region_id()) != Some(&entry.region_type()))
+            .map(|entry| *entry.key())
+            .collect();
+        for endpoint_id in obsolete {
+            self.endpoints.remove(&endpoint_id);
+        }
+
+        let existing: HashSet<_> = self
+            .endpoints
+            .iter()
+            .map(|entry| entry.region_id())
+            .collect();
+        for region in regions
+            .iter()
+            .filter(|region| !existing.contains(&region.id))
+        {
+            let endpoint = match region.r#type {
+                RegionType::Bulk => StorageEndpoints::bulk(region.clone()),
+                RegionType::Putaway => StorageEndpoints::putaway(region.clone()),
+                RegionType::Pickface | RegionType::Processing | RegionType::Order => continue,
+            };
+            self.endpoints.insert(endpoint.id(), endpoint);
+        }
+    }
+
+    async fn refresh_endpoint_contents(&self) -> Result<(), anyhow::Error> {
+        let mut containers_by_region: HashMap<_, Vec<_>> = HashMap::new();
+        for container in self.state.db.fetch_all_containers().await? {
+            containers_by_region
+                .entry(container.region_id)
+                .or_default()
+                .push(container);
+        }
+
+        let endpoint_ids: Vec<_> = self.endpoints.iter().map(|entry| *entry.key()).collect();
+        for endpoint_id in endpoint_ids {
+            let Some(endpoint) = self.endpoints.get(&endpoint_id) else {
+                continue;
+            };
+            let containers = containers_by_region
+                .remove(&endpoint.region_id())
+                .unwrap_or_default();
+            endpoint.reindex(containers).await.map_err(|error| {
+                anyhow::anyhow!("failed to reindex storage endpoint: {error:?}")
+            })?;
+        }
+        Ok(())
     }
 
     /// Drives the planner tick loop, ticking every [`TICK_INTERVAL`].
@@ -66,6 +134,12 @@ impl Planner {
         match request {
             PlannerRequest::IndexRegions => {
                 self.index_regions().await?;
+            }
+            PlannerRequest::CycleCount => {
+                self.cycle_count().await?;
+            }
+            PlannerRequest::Putaway => {
+                self.putaway().await?;
             }
         };
         Ok(())

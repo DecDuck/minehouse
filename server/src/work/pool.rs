@@ -95,6 +95,12 @@ impl WorkUnitPool {
             .pool
             .get_mut(&wu.id)
             .ok_or(MinehouseError::WorkUnitNotFound)?;
+        if scheduled_wu.work_unit.is_done() {
+            return wu
+                .is_done()
+                .then_some(())
+                .ok_or(MinehouseError::NotLocked);
+        }
         if let Some(assigned_client) = scheduled_wu.assigned_to {
             if assigned_client != *client_id {
                 return Err(MinehouseError::NotYourWorkUnit);
@@ -228,6 +234,23 @@ mod tests {
         assert!(completed.is_done());
         assert_eq!(pool.pool.get(&id).unwrap().assigned_to, None);
         assert!(pool.available_work_units().is_empty());
+    }
+
+    #[tokio::test]
+    async fn completed_submission_can_be_retried_after_claim_release() {
+        let pool = WorkUnitPool::new();
+        let id = WorkUnitId::new();
+        let first_client = ClientId::new();
+        let retry_client = ClientId::new();
+        pool.queue_work_unit(work_unit(id, false), None);
+        pool.claim_work_unit(&id, &first_client).unwrap();
+        pool.submit_work_unit(work_unit(id, true), &first_client)
+            .await
+            .unwrap();
+
+        pool.submit_work_unit(work_unit(id, true), &retry_client)
+            .await
+            .unwrap();
     }
 
     #[test]

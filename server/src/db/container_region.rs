@@ -21,6 +21,7 @@ pub enum RegionType {
 pub struct ContainerRegion {
     pub id: Uuid,
     pub r#type: RegionType,
+    pub priority: i32,
     pub world_region: Cube,
 }
 
@@ -31,6 +32,7 @@ impl DatabaseHandle {
             r#"select
                 id,
                 type as "type: RegionType",
+                priority,
                 world_region as "world_region: Cube"
             from container_region"#
         )
@@ -44,6 +46,7 @@ impl DatabaseHandle {
             r#"select
                 id,
                 type as "type: RegionType",
+                priority,
                 world_region as "world_region: Cube"
             from container_region
             where id = $1"#,
@@ -56,17 +59,20 @@ impl DatabaseHandle {
     pub async fn create_region(
         &self,
         region_type: RegionType,
+        priority: i32,
         world_region: Cube,
     ) -> Result<ContainerRegion, sqlx::Error> {
         sqlx::query_as!(
             ContainerRegion,
-            r#"insert into container_region (type, world_region)
-               values ($1, $2)
+            r#"insert into container_region (type, priority, world_region)
+               values ($1, $2, $3)
                returning
                    id,
                    type as "type: RegionType",
+                   priority,
                    world_region as "world_region: Cube""#,
             region_type as RegionType,
+            priority,
             cube_to_pg_cube(world_region),
         )
         .fetch_one(&self.pool)
@@ -77,19 +83,22 @@ impl DatabaseHandle {
         &self,
         id: Uuid,
         region_type: RegionType,
+        priority: i32,
         world_region: Cube,
     ) -> Result<Option<ContainerRegion>, sqlx::Error> {
         sqlx::query_as!(
             ContainerRegion,
             r#"update container_region
-               set type = $2, world_region = $3
+               set type = $2, priority = $3, world_region = $4
                where id = $1
                returning
                    id,
                    type as "type: RegionType",
+                   priority,
                    world_region as "world_region: Cube""#,
             id,
             region_type as RegionType,
+            priority,
             cube_to_pg_cube(world_region),
         )
         .fetch_optional(&self.pool)

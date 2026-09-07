@@ -34,12 +34,15 @@ pub struct RegionWorld {
 pub struct Region {
     pub id: String,
     pub r#type: RegionType,
+    pub priority: i32,
     pub world_region: RegionWorld,
 }
 
 #[derive(Debug, Clone, Deserialize, OaSchema)]
 pub struct RegionRequest {
     pub r#type: RegionType,
+    #[serde(default)]
+    pub priority: i32,
     pub world_region: RegionWorld,
 }
 
@@ -48,6 +51,7 @@ impl From<ContainerRegion> for Region {
         Self {
             id: region.id.to_string(),
             r#type: region.r#type,
+            priority: region.priority,
             world_region: RegionWorld {
                 pos1: RegionPoint {
                     x: region.world_region.x1,
@@ -106,7 +110,11 @@ pub async fn create_region(
 ) -> Result<Json<Region>, ApiError> {
     let region = state
         .db
-        .create_region(request.r#type, request.world_region.into())
+        .create_region(
+            request.r#type,
+            request.priority,
+            request.world_region.into(),
+        )
         .await?;
     Ok(Json(region.into()))
 }
@@ -120,7 +128,12 @@ pub async fn update_region(
     let id = Uuid::parse_str(&id)?;
     state
         .db
-        .update_region(id, request.r#type, request.world_region.into())
+        .update_region(
+            id,
+            request.r#type,
+            request.priority,
+            request.world_region.into(),
+        )
         .await?
         .map(|region| Json(region.into()))
         .ok_or_else(|| ApiError::from_debug("region not found"))

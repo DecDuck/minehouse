@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    time::{Duration, Instant},
-};
+use std::time::{Duration, Instant};
 
 use common::{
     work::{WorkUnit, WorkUnitData},
@@ -10,52 +7,18 @@ use common::{
 use futures::{StreamExt as _, stream::FuturesUnordered};
 use tracing::warn;
 
-use crate::{
-    db::container_region::RegionType,
-    mwms::{endpoints::StorageEndpoints, planner::Planner, storage::StorageEndpoint},
-};
+use crate::mwms::planner::Planner;
 
 impl Planner {
     pub async fn index_regions(&self) -> Result<(), anyhow::Error> {
         let regions = self.state.db.fetch_all_regions().await?;
-        let regions = regions
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<HashMap<_, _>>();
-        let region_id_to_endpoint_id = self
-            .endpoints
-            .iter()
-            .map(|v| (v.value().region_id(), *v.key()))
-            .collect::<HashMap<_, _>>();
-
-        // Remove unused endpoints
-        let unused = region_id_to_endpoint_id
-            .iter()
-            .filter(|v| !regions.contains_key(v.0))
-            .map(|v| v.1);
-        for unused in unused {
-            self.endpoints.remove(unused);
-        }
-
-        // Create new endpoints
-        let missing = regions
-            .iter()
-            .filter(|v| !region_id_to_endpoint_id.contains_key(v.0));
-        for (_, container_region) in missing {
-            let region = match container_region.r#type {
-                RegionType::Bulk => StorageEndpoints::bulk(container_region.clone()),
-                RegionType::Pickface => todo!(),
-                RegionType::Putaway => StorageEndpoints::putaway(container_region.clone()),
-                RegionType::Processing => todo!(),
-                RegionType::Order => todo!(),
-            };
-            self.endpoints.insert(region.id(), region);
-        }
+        self.sync_storage_endpoints(&regions);
 
         // Reindex jobs
         let mut promises = FuturesUnordered::new();
 
-        for (region_id, region) in regions {
+        for region in regions {
+            let region_id = region.id;
             let wu = IndexRegionWorkUnit {
                 region_range: region.world_region.into(),
                 output_chunks_scanned: Vec::new(),
@@ -95,6 +58,7 @@ impl Planner {
                 .await?;
         }
 
+        self.refresh_endpoint_contents().await?;
         Ok(())
     }
 }

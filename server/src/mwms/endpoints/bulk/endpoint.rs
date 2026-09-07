@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use common::{item_stack::SKU, vec::Point};
 use dashmap::DashMap;
 use sqlx::types::Uuid;
 use tokio::sync::RwLock;
@@ -30,6 +31,13 @@ struct ContainerSlots {
     newly_allocated: bool,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct PlannedDestination {
+    pub container_id: Uuid,
+    pub position: Point,
+    pub slot: usize,
+}
+
 pub struct BulkStorage {
     id: StorageEndpointId,
     region: ContainerRegion,
@@ -42,6 +50,42 @@ pub struct BulkStorage {
 }
 
 impl BulkStorage {
+    pub(crate) async fn planned_destinations(
+        &self,
+        document: TransferDocumentId,
+    ) -> Option<HashMap<SKU, Vec<PlannedDestination>>> {
+        let plan = self.documents.get(&document)?.plan.clone();
+        let containers = self.containers.read().await;
+
+        plan.into_iter()
+            .map(|(sku, slots)| {
+                let destinations = slots
+                    .into_iter()
+                    .map(|slot| {
+                        let container = containers
+                            .iter()
+                            .find(|entry| entry.container.id == slot.container)?;
+                        Some(PlannedDestination {
+                            container_id: slot.container,
+                            position: Point {
+                                x: container.container.position.x1,
+                                y: container.container.position.y1,
+                                z: container.container.position.z1,
+                            },
+                            slot: slot.slot,
+                        })
+                    })
+                    .collect::<Option<Vec<_>>>()?;
+                Some((sku, destinations))
+            })
+            .collect()
+    }
+
+    pub(crate) async fn remove_document(&self, document: TransferDocumentId) {
+        self.release(document).await;
+        self.documents.remove(&document);
+    }
+
     /// Finds slots available for `category`: containers already holding that
     /// category first, then unassigned containers ordered most-central first (the
     /// one physically closest to the most other containers). Newly-allocated
@@ -319,6 +363,10 @@ impl StorageEndpoint for BulkStorage {
     where
         Other: StorageEndpoint,
     {
+        if self.id == other.id() {
+            return Err(StorageEndpointError::EndpointMismatch);
+        }
+
         // The order must route between exactly these two endpoints.
         let endpoints = [request.header.from, request.header.to];
         if !endpoints.contains(&self.id) || !endpoints.contains(&other.id()) {
@@ -352,6 +400,12 @@ impl StorageEndpoint for BulkStorage {
         request: &TransferRequest,
         document: &TransferDocumentHandle,
     ) -> Result<(), StorageEndpointError> {
+        if request.header.from == request.header.to
+            || (request.header.from != self.id && request.header.to != self.id)
+        {
+            return Err(StorageEndpointError::EndpointMismatch);
+        }
+
         let id = document.lock().await.id;
 
         // Plan and reserve our side when we're the destination.
@@ -411,6 +465,7 @@ mod tests {
         ContainerRegion {
             id: Uuid::new_v4(),
             r#type: RegionType::Bulk,
+            priority: 0,
             world_region: Cube {
                 x1: 0.0,
                 y1: 0.0,
@@ -572,5 +627,50 @@ mod tests {
                 if reason == "A planned destination slot is no longer available"
         ));
         assert!(storage.containers.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn negotiation_rejects_requests_for_unrelated_endpoints() {
+        let storage = BulkStorage::new(region());
+        let request = request(storage.id(), stone_stack(Uuid::new_v4(), 0).sku());
+        let unrelated = StorageEndpointId::random();
+        let request = TransferRequest {
+            header: TransferOrder {
+                from: unrelated,
+                to: StorageEndpointId::random(),
+                ..request.header
+            },
+            ..request
+        };
+        let document = TransferDocumentHandle::new(request.clone().accept());
+
+        assert!(matches!(
+            storage.negotiate_transfer(&request, &document).await,
+            Err(StorageEndpointError::EndpointMismatch)
+        ));
+    }
+
+    #[tokio::test]
+    async fn self_transfers_are_rejected_before_reservation() {
+        let region = region();
+        let storage = BulkStorage::new(region.clone());
+        storage
+            .reindex(vec![container(region.id, 1, HashMap::new())])
+            .await
+            .unwrap();
+        let request = request(storage.id(), stone_stack(Uuid::new_v4(), 0).sku());
+        let request = TransferRequest {
+            header: TransferOrder {
+                from: storage.id(),
+                ..request.header
+            },
+            ..request
+        };
+
+        assert!(matches!(
+            storage.request_transfer(&storage, &request).await,
+            Err(StorageEndpointError::EndpointMismatch)
+        ));
+        assert_eq!(storage.containers.read().await[0].available_slots().len(), 1);
     }
 }

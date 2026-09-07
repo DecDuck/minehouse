@@ -1,8 +1,8 @@
-pub mod rpc;
-pub mod work;
-pub mod vec;
-pub mod item_stack;
 pub mod ids;
-pub mod work_units;
-pub mod sync;
+pub mod item_stack;
 pub mod mwms;
+pub mod rpc;
+pub mod sync;
+pub mod vec;
+pub mod work;
+pub mod work_units;

@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{item_stack::ItemStack, vec::Point, work::{WorkUnitData, WorkUnitDone}};
+use crate::{
+    item_stack::ItemStack,
+    vec::Point,
+    work::{WorkUnitData, WorkUnitDone},
+};
 
 /// Indexes a container at a point
 #[derive(Serialize, Deserialize, Debug, Clone)]

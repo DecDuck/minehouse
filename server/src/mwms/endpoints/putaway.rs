@@ -26,6 +26,22 @@ pub struct PutawayStorage {
 }
 
 impl PutawayStorage {
+    pub(crate) async fn containers_snapshot(&self) -> Vec<Container> {
+        self.containers.read().await.clone()
+    }
+
+    pub(crate) fn remove_document(&self, document: TransferDocumentId) {
+        self.documents.remove(&document);
+    }
+
+    pub async fn has_items(&self) -> bool {
+        self.containers
+            .read()
+            .await
+            .iter()
+            .any(|container| container.contents.values().any(|item| item.quantity > 0))
+    }
+
     /// Creates a transfer for every item currently indexed in this endpoint.
     pub async fn putaway_into<Other>(
         &self,
@@ -110,6 +126,10 @@ impl StorageEndpoint for PutawayStorage {
     where
         Other: StorageEndpoint,
     {
+        if self.id == other.id() {
+            return Err(StorageEndpointError::EndpointMismatch);
+        }
+
         if request.header.from != self.id || request.header.to != other.id() {
             return Err(StorageEndpointError::EndpointMismatch);
         }
@@ -145,6 +165,7 @@ mod tests {
         ContainerRegion {
             id: Uuid::new_v4(),
             r#type: region_type,
+            priority: 0,
             world_region: Cube {
                 x1: 0.0,
                 y1: 0.0,
@@ -237,6 +258,25 @@ mod tests {
         let document = TransferDocumentHandle::new(request.clone().accept());
         assert!(matches!(
             putaway.negotiate_transfer(&request, &document).await,
+            Err(StorageEndpointError::EndpointMismatch)
+        ));
+    }
+
+    #[tokio::test]
+    async fn putaway_rejects_self_transfers() {
+        let region = region(RegionType::Putaway);
+        let putaway = PutawayStorage::new(region);
+        let request = TransferRequest {
+            header: TransferOrder {
+                to: putaway.id(),
+                from: putaway.id(),
+                state: TransferDocumentState::Draft,
+            },
+            lines: HashMap::new(),
+        };
+
+        assert!(matches!(
+            putaway.request_transfer(&putaway, &request).await,
             Err(StorageEndpointError::EndpointMismatch)
         ));
     }

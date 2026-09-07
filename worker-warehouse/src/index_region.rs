@@ -3,8 +3,9 @@ use std::time::Duration;
 use anyhow::Context;
 use azalea::{
     BlockPos, Client,
+    block::BlockTrait,
     core::position::ChunkPos,
-    pathfinder::{PathfinderClientExt, goals::XZGoal},
+    pathfinder::{PathfinderClientExt, PathfinderOpts, goals::XZGoal},
 };
 use common::{
     vec::{Point, PointRegion},
@@ -17,11 +18,36 @@ const LOAD_CHECKS: usize = 100;
 const LOAD_CHECK_INTERVAL: Duration = Duration::from_millis(100);
 const INITIAL_LOAD_CHECKS: usize = 20;
 
-fn container_capacity(block_id: &str) -> Option<usize> {
-    Some(match block_id {
+fn is_positive_double_chest_half(facing: &str, chest_type: &str) -> bool {
+    matches!(
+        (facing, chest_type),
+        ("north" | "east", "right") | ("south" | "west", "left")
+    )
+}
+
+fn container_capacity(block: &dyn BlockTrait) -> Option<usize> {
+    Some(match block.id() {
         "chest"
         | "trapped_chest"
-        | "barrel"
+        | "copper_chest"
+        | "exposed_copper_chest"
+        | "weathered_copper_chest"
+        | "oxidized_copper_chest"
+        | "waxed_copper_chest"
+        | "waxed_exposed_copper_chest"
+        | "waxed_weathered_copper_chest"
+        | "waxed_oxidized_copper_chest" => match block.get_property("type") {
+            Some("single") => 27,
+            Some(chest_type @ ("left" | "right")) => {
+                let facing = block.get_property("facing")?;
+                if !is_positive_double_chest_half(facing, chest_type) {
+                    return None;
+                }
+                54
+            }
+            _ => 27,
+        },
+        "barrel"
         | "shulker_box"
         | "white_shulker_box"
         | "orange_shulker_box"
@@ -101,10 +127,13 @@ async fn ensure_chunk_loaded(client: &Client, chunk: &PointRegion) -> Result<(),
         return Ok(());
     }
 
-    client.start_goto(XZGoal {
-        x: chunk.pos1.x as i32 + 8,
-        z: chunk.pos1.z as i32 + 8,
-    });
+    client.start_goto_with_opts(
+        XZGoal {
+            x: chunk.pos1.x as i32 + 8,
+            z: chunk.pos1.z as i32 + 8,
+        },
+        PathfinderOpts::new().allow_mining(false),
+    );
 
     for _ in 0..LOAD_CHECKS {
         match is_chunk_loaded(client, chunk) {
@@ -146,7 +175,7 @@ fn scan_chunk(
                 let Some(state) = world.get_block_state(position) else {
                     continue;
                 };
-                let Some(capacity) = container_capacity(state.to_trait().id()) else {
+                let Some(capacity) = container_capacity(state.to_trait()) else {
                     continue;
                 };
                 containers.push(IndexChunkWorkUnitContainer {
@@ -203,9 +232,60 @@ pub async fn index_region(
 
 #[cfg(test)]
 mod tests {
+    use azalea::block::{BlockState, BlockTrait};
+    use azalea::registry::builtin::BlockKind;
     use common::vec::{Point, PointRegion};
 
-    use super::chunk_position;
+    use super::{chunk_position, container_capacity};
+
+    fn chest(kind: BlockKind, facing: &str, chest_type: &str) -> Box<dyn BlockTrait> {
+        let mut chest = BlockState::from(kind).to_trait().boxed();
+        chest.set_property("facing", facing).unwrap();
+        chest.set_property("type", chest_type).unwrap();
+        chest
+    }
+
+    #[test]
+    fn single_chest_keeps_single_capacity() {
+        let chest = chest(BlockKind::Chest, "north", "single");
+
+        assert_eq!(container_capacity(chest.as_ref()), Some(27));
+    }
+
+    #[test]
+    fn double_chest_uses_only_positive_coordinate_half() {
+        for (facing, kept_type) in [
+            ("north", "right"),
+            ("south", "left"),
+            ("east", "right"),
+            ("west", "left"),
+        ] {
+            let skipped_type = match kept_type {
+                "left" => "right",
+                "right" => "left",
+                _ => unreachable!(),
+            };
+            let kept = chest(BlockKind::Chest, facing, kept_type);
+            let skipped = chest(BlockKind::Chest, facing, skipped_type);
+
+            assert_eq!(container_capacity(kept.as_ref()), Some(54));
+            assert_eq!(container_capacity(skipped.as_ref()), None);
+        }
+    }
+
+    #[test]
+    fn trapped_double_chest_uses_full_capacity() {
+        let chest = chest(BlockKind::TrappedChest, "north", "right");
+
+        assert_eq!(container_capacity(chest.as_ref()), Some(54));
+    }
+
+    #[test]
+    fn copper_double_chest_uses_full_capacity() {
+        let chest = chest(BlockKind::WaxedOxidizedCopperChest, "south", "left");
+
+        assert_eq!(container_capacity(chest.as_ref()), Some(54));
+    }
 
     #[test]
     fn chunk_position_floors_negative_block_coordinates() {

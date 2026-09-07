@@ -473,6 +473,7 @@ dependencies = [
  "azalea-registry",
  "enum_dispatch",
  "serde",
+ "serde_json",
  "sqlx",
  "tarpc",
  "thiserror 2.0.20",

@@ -7,7 +7,9 @@ use crate::{config::WarehouseWorkerConfig, imple::WarehouseWorker};
 
 pub mod config;
 pub mod imple;
+pub mod index_container;
 pub mod index_region;
+pub mod transfer;
 
 #[derive(Clone, Component, Default)]
 pub struct WarehouseWorkerState {}
