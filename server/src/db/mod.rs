@@ -13,6 +13,7 @@ pub mod container_region;
 pub mod crafting_engine;
 pub mod generic_crafting_engine;
 pub mod item_stack;
+pub mod storage;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Cube {

@@ -1,0 +1,449 @@
+openapi: 3.0.3
+info:
+  title: Minehouse
+  version: ''
+paths:
+  /api/v1/queue:
+    post:
+      summary: Queue a planner request
+      operationId: api_queue_queue_request
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlannerRequest'
+        required: true
+      responses: {}
+  /api/v1/storage:
+    get:
+      summary: Search indexed storage contents
+      operationId: api_storage_list_storage
+      parameters:
+      - name: q
+        schema:
+          nullable: true
+          type: string
+        in: query
+        style: form
+      - name: region_id
+        schema:
+          nullable: true
+          type: string
+        in: query
+        style: form
+      - name: min_quantity
+        schema:
+          nullable: true
+          type: integer
+        in: query
+        style: form
+      - name: sort_by
+        schema:
+          $ref: '#/components/schemas/StorageSortBy'
+        in: query
+        style: form
+      - name: sort_direction
+        schema:
+          $ref: '#/components/schemas/StorageSortDirection'
+        in: query
+        style: form
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StorageItem'
+  /api/v1/storage/{item_kind}:
+    get:
+      summary: Get all indexed stacks for an item kind
+      operationId: api_storage_get_item_kind_details
+      parameters:
+      - name: item_kind
+        schema:
+          type: string
+        in: path
+        style: simple
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemKindDetails'
+  /api/v1/containers:
+    get:
+      summary: List all containers with their current contents
+      operationId: api_containers_list_containers
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContainerView'
+  /api/v1/containers/grouped:
+    get:
+      summary: List all containers grouped by region
+      operationId: api_containers_list_containers_grouped
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContainerRegionGroup'
+  /api/v1/containers/{id}:
+    get:
+      summary: Get a container with its current contents
+      operationId: api_containers_get_container
+      parameters:
+      - name: id
+        schema:
+          type: string
+        in: path
+        style: simple
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerView'
+  /api/v1/regions:
+    get:
+      summary: List all container regions
+      operationId: api_regions_list_regions
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Region'
+    post:
+      summary: Create a container region
+      operationId: api_regions_create_region
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegionRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+  /api/v1/regions/{id}:
+    get:
+      summary: Get a container region
+      operationId: api_regions_get_region
+      parameters:
+      - name: id
+        schema:
+          type: string
+        in: path
+        style: simple
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+    put:
+      summary: Replace a container region
+      operationId: api_regions_update_region
+      parameters:
+      - name: id
+        schema:
+          type: string
+        in: path
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegionRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+    delete:
+      summary: Delete a container region
+      operationId: api_regions_delete_region
+      parameters:
+      - name: id
+        schema:
+          type: string
+        in: path
+        style: simple
+      responses: {}
+components:
+  schemas:
+    ContainerPosition:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+      required:
+      - x
+      - y
+      - z
+    ContainerRegionGroup:
+      type: object
+      properties:
+        region_id:
+          type: string
+        region_type:
+          $ref: '#/components/schemas/RegionType'
+        priority:
+          nullable: true
+          type: integer
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContainerView'
+      required:
+      - region_id
+      - containers
+    ContainerView:
+      type: object
+      properties:
+        id:
+          type: string
+        region_id:
+          type: string
+        position:
+          $ref: '#/components/schemas/ContainerPosition'
+        capacity:
+          type: integer
+        contents:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemStackView'
+      required:
+      - id
+      - region_id
+      - position
+      - capacity
+      - contents
+    ItemKindDetails:
+      type: object
+      properties:
+        item_kind:
+          type: string
+        total_quantity:
+          type: integer
+        stack_count:
+          type: integer
+        container_count:
+          type: integer
+        stacks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemKindStack'
+      required:
+      - item_kind
+      - total_quantity
+      - stack_count
+      - container_count
+      - stacks
+    ItemKindStack:
+      type: object
+      properties:
+        stack_id:
+          type: string
+        container_id:
+          type: string
+        region_id:
+          type: string
+        region_type:
+          type: string
+        position:
+          $ref: '#/components/schemas/ItemPosition'
+        slot:
+          type: integer
+        quantity:
+          type: integer
+        components:
+          type: object
+        components_digest:
+          type: string
+      required:
+      - stack_id
+      - container_id
+      - region_id
+      - region_type
+      - position
+      - slot
+      - quantity
+      - components
+      - components_digest
+    ItemPosition:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+      required:
+      - x
+      - y
+      - z
+    ItemStackView:
+      type: object
+      properties:
+        id:
+          type: string
+        container_id:
+          type: string
+        item_kind:
+          type: string
+        slot:
+          type: integer
+        components:
+          type: object
+        quantity:
+          type: integer
+        components_digest:
+          type: string
+      required:
+      - id
+      - container_id
+      - item_kind
+      - slot
+      - components
+      - quantity
+      - components_digest
+    PlannerRequest:
+      type: string
+      enum:
+      - IndexRegions
+      - CycleCount
+      - Putaway
+    Region:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: '#/components/schemas/RegionType'
+        priority:
+          type: integer
+        world_region:
+          $ref: '#/components/schemas/RegionWorld'
+      required:
+      - id
+      - type
+      - priority
+      - world_region
+    RegionPoint:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+      required:
+      - x
+      - y
+      - z
+    RegionRequest:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/RegionType'
+        priority:
+          type: integer
+        world_region:
+          $ref: '#/components/schemas/RegionWorld'
+      required:
+      - type
+      - priority
+      - world_region
+    RegionType:
+      type: string
+      enum:
+      - bulk
+      - pickface
+      - putaway
+      - processing
+      - order
+    RegionWorld:
+      type: object
+      properties:
+        pos1:
+          $ref: '#/components/schemas/RegionPoint'
+        pos2:
+          $ref: '#/components/schemas/RegionPoint'
+      required:
+      - pos1
+      - pos2
+    StorageItem:
+      type: object
+      properties:
+        item_kind:
+          type: string
+        quantity:
+          type: integer
+        stack_count:
+          type: integer
+        container_count:
+          type: integer
+      required:
+      - item_kind
+      - quantity
+      - stack_count
+      - container_count
+    StorageQuery:
+      type: object
+      properties:
+        q:
+          nullable: true
+          type: string
+        region_id:
+          nullable: true
+          type: string
+        min_quantity:
+          nullable: true
+          type: integer
+        sort_by:
+          $ref: '#/components/schemas/StorageSortBy'
+        sort_direction:
+          $ref: '#/components/schemas/StorageSortDirection'
+    StorageSortBy:
+      type: string
+      enum:
+      - name
+      - quantity
+      - stacks
+      - containers
+    StorageSortDirection:
+      type: string
+      enum:
+      - asc
+      - desc

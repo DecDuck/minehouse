@@ -9,6 +9,7 @@ use tarpc::{
     server::{BaseChannel, Channel as _},
 };
 use tokio::{join, net::TcpListener};
+use tower_http::cors::CorsLayer;
 use tracing::info;
 
 use crate::{
@@ -52,6 +53,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let server = server
         .post("/api/v1/queue", api::queue_request)
+        .get("/api/v1/storage", api::list_storage)
+        .get("/api/v1/storage/{item_kind}", api::get_item_kind_details)
+        .get("/api/v1/containers", api::list_containers)
+        .get("/api/v1/containers/grouped", api::list_containers_grouped)
+        .get("/api/v1/containers/{id}", api::get_container)
         .get("/api/v1/regions", api::list_regions)
         .post("/api/v1/regions", api::create_region)
         .get("/api/v1/regions/{id}", api::get_region)
@@ -87,6 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let app = Router::new()
         .merge(server.into_router())
+        .layer(CorsLayer::permissive())
         // websockets
         .with_state(app_state);
 

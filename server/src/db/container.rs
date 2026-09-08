@@ -46,14 +46,29 @@ impl super::DatabaseHandle {
     }
 
     pub async fn fetch_all_containers(&self) -> Result<Vec<Container>, sqlx::Error> {
-        let rows = sqlx::query_as::<_, ContainerRow>(
-            "select id, region_id, position, capacity from container",
+        let rows = sqlx::query_as!(
+            ContainerRow,
+            r#"select
+                id,
+                region_id,
+                position as "position: Cube",
+                capacity
+            from container
+            order by id"#,
         )
         .fetch_all(&self.pool)
         .await?;
-        let stacks = sqlx::query_as::<_, ItemStack>(
-            "select id, container_id, item_kind, slot, components, quantity, components_digest \
-             from item_stack",
+        let stacks = sqlx::query_as!(
+            ItemStack,
+            r#"select
+                id,
+                container_id,
+                item_kind,
+                slot,
+                components,
+                quantity,
+                components_digest as "components_digest!"
+            from item_stack"#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -82,6 +97,60 @@ impl super::DatabaseHandle {
                 })
             })
             .collect()
+    }
+
+    pub async fn fetch_container(&self, id: Uuid) -> Result<Option<Container>, sqlx::Error> {
+        let Some(row) = sqlx::query_as!(
+            ContainerRow,
+            r#"select
+                id,
+                region_id,
+                position as "position: Cube",
+                capacity
+            from container
+            where id = $1"#,
+            id,
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        else {
+            return Ok(None);
+        };
+
+        let stacks = sqlx::query_as!(
+            ItemStack,
+            r#"select
+                id,
+                container_id,
+                item_kind,
+                slot,
+                components,
+                quantity,
+                components_digest as "components_digest!"
+            from item_stack
+            where container_id = $1
+            order by slot"#,
+            id,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let capacity = u64::try_from(row.capacity)
+            .map_err(|_| sqlx::Error::Protocol("container capacity cannot be negative".into()))?;
+        let mut contents = HashMap::new();
+        for stack in stacks {
+            let slot = usize::try_from(stack.slot)
+                .map_err(|_| sqlx::Error::Protocol("item stack slot cannot be negative".into()))?;
+            contents.insert(slot, stack);
+        }
+
+        Ok(Some(Container {
+            id: row.id,
+            region_id: row.region_id,
+            position: row.position,
+            capacity,
+            contents,
+        }))
     }
 }
 
