@@ -22,6 +22,7 @@ use crate::{
 
 pub use queue::InspectableQueue;
 pub use request::PlannerRequest;
+pub mod craft;
 pub mod cycle_count;
 pub mod index_regions;
 pub mod putaway;
@@ -123,14 +124,23 @@ impl Planner {
 
     /// Runs a single planning pass: drains the request queue and acts on each request.
     async fn tick(&self) {
+        let mut waiting = Vec::new();
         while let Some(request) = self.queue.pop() {
-            if let Err(error) = self.handle_request(request).await {
-                error!(?error, "planner request failed");
+            match self.handle_request(request).await {
+                Ok(Some(request)) => waiting.push(request),
+                Ok(None) => {}
+                Err(error) => error!(?error, "planner request failed"),
             }
+        }
+        for request in waiting {
+            self.queue.push(request);
         }
     }
 
-    async fn handle_request(&self, request: PlannerRequest) -> Result<(), anyhow::Error> {
+    async fn handle_request(
+        &self,
+        request: PlannerRequest,
+    ) -> Result<Option<PlannerRequest>, anyhow::Error> {
         match request {
             PlannerRequest::IndexRegions => {
                 self.index_regions().await?;
@@ -141,7 +151,35 @@ impl Planner {
             PlannerRequest::Putaway => {
                 self.putaway().await?;
             }
-        };
-        Ok(())
+            PlannerRequest::Craft(request) => {
+                let retry = request.clone();
+                let job_id = request
+                    .job_id
+                    .as_deref()
+                    .and_then(|id| uuid::Uuid::parse_str(id).ok());
+                match self.craft(request).await {
+                    Ok(craft::CraftAttempt::Waiting) => {
+                        return Ok(Some(PlannerRequest::Craft(retry)));
+                    }
+                    Ok(craft::CraftAttempt::Completed) => {}
+                    Err(error) => {
+                        if let Some(job_id) = job_id {
+                            let _ = self
+                                .state
+                                .db
+                                .update_craft_job(
+                                    job_id,
+                                    crate::mwms::crafting::CraftJobState::Failed,
+                                    0,
+                                    Some(error.to_string()),
+                                )
+                                .await;
+                        }
+                        return Err(error);
+                    }
+                }
+            }
+        }
+        Ok(None)
     }
 }

@@ -671,6 +671,9 @@ mod tests {
             storage.request_transfer(&storage, &request).await,
             Err(StorageEndpointError::EndpointMismatch)
         ));
-        assert_eq!(storage.containers.read().await[0].available_slots().len(), 1);
+        assert_eq!(
+            storage.containers.read().await[0].available_slots().len(),
+            1
+        );
     }
 }

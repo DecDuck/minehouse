@@ -10,9 +10,11 @@ use crate::config::MinehouseConfig;
 
 pub mod container;
 pub mod container_region;
+pub mod craft_job;
 pub mod crafting_engine;
 pub mod generic_crafting_engine;
 pub mod item_stack;
+pub mod recipe;
 pub mod storage;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -145,6 +147,8 @@ impl DatabaseHandle {
             .max_connections(5)
             .connect(&config.db_url)
             .await?;
+
+        sqlx::migrate!("./migrations").run(&pool).await?;
 
         Ok(Self { pool })
     }

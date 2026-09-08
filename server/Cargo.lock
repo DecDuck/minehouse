@@ -2043,6 +2043,7 @@ dependencies = [
  "futures",
  "oasgen",
  "serde",
+ "serde_json",
  "serde_yaml2",
  "sqlx",
  "tarpc",

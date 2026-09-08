@@ -8,6 +8,7 @@ use common::{
 use tarpc::context::Context;
 
 use crate::state::MinehouseState;
+use crate::work::WorkUnitAction;
 
 struct ClientSession {
     state: Arc<MinehouseState>,
@@ -55,11 +56,23 @@ impl MinehouseServer for MinehouseServerImpl {
         unit: WorkUnit,
     ) -> Result<bool, MinehouseError> {
         let is_done = unit.is_done();
+        let unit_id = unit.id;
         self.session
             .state
             .pool
             .submit_work_unit(unit, &self.session.client_id)
             .await?;
+        if is_done {
+            let completed = self
+                .session
+                .state
+                .pool
+                .work_units()
+                .into_iter()
+                .find(|work_unit| work_unit.id == unit_id)
+                .ok_or(MinehouseError::WorkUnitNotFound)?;
+            completed.action(self.session.state.clone()).await?;
+        }
         Ok(is_done)
     }
 

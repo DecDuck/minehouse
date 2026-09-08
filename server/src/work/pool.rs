@@ -96,10 +96,7 @@ impl WorkUnitPool {
             .get_mut(&wu.id)
             .ok_or(MinehouseError::WorkUnitNotFound)?;
         if scheduled_wu.work_unit.is_done() {
-            return wu
-                .is_done()
-                .then_some(())
-                .ok_or(MinehouseError::NotLocked);
+            return wu.is_done().then_some(()).ok_or(MinehouseError::NotLocked);
         }
         if let Some(assigned_client) = scheduled_wu.assigned_to {
             if assigned_client != *client_id {

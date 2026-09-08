@@ -53,6 +53,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let server = server
         .post("/api/v1/queue", api::queue_request)
+        .get("/api/v1/recipes", api::list_recipes)
+        .get("/api/v1/crafting", api::list_craft_statuses)
+        .post("/api/v1/crafting/plan", api::resolve_crafting_plan)
+        .get("/api/v1/crafting/{id}", api::get_craft_status)
         .get("/api/v1/storage", api::list_storage)
         .get("/api/v1/storage/{item_kind}", api::get_item_kind_details)
         .get("/api/v1/containers", api::list_containers)
