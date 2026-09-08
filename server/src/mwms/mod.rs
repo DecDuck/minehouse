@@ -1,4 +1,5 @@
 pub mod category;
+pub mod crafting;
 pub mod endpoints;
 pub mod item_profiles;
 pub mod planner;

@@ -47,11 +47,13 @@ impl IntoResponse for ApiError {
 }
 
 pub mod containers;
+pub mod crafting;
 pub mod queue;
 pub mod regions;
 pub mod storage;
 
 pub use containers::{get_container, list_containers, list_containers_grouped};
+pub use crafting::{get_craft_status, list_craft_statuses, list_recipes, resolve_crafting_plan};
 pub use queue::queue_request;
 pub use regions::{create_region, delete_region, get_region, list_regions, update_region};
 pub use storage::{get_item_kind_details, list_storage};
