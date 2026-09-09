@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { CraftNode, CraftOption, CraftSelection } from '~/composables/useCrafting'
+import type { CraftNode, CraftNodeStatus, CraftOption, CraftSelection } from '~/types/crafting'
+import { flattenCraftTree } from '~/utils/crafting'
 
 const props = defineProps<{
   tree: CraftNode
-  statuses?: Map<string, 'done' | 'active' | 'pending'>
+  statuses?: Map<string, CraftNodeStatus>
+  readOnly?: boolean
 }>()
 const emit = defineEmits<{ select: [key: string, selection: CraftSelection]; unselect: [key: string] }>()
 
 const { formatItemKind, formatCount } = useFormat()
-const { flatten } = useCrafting()
-
 const NODE_W = 208
 const NODE_H = 60
 const COL = 280
@@ -21,7 +21,7 @@ const markerId = `craft-arrow-${useId()}`
 function nodeHeight(node: CraftNode): number {
   if (node.type !== 'choice') return NODE_H
   let h = 38
-  for (const option of node.options) h += 34 + (option.type === 'recipe' ? flatten(option.preview).length * 22 : 0)
+  for (const option of node.options) h += 34 + (option.type === 'recipe' ? flattenCraftTree(option.preview).length * 22 : 0)
   return h
 }
 
@@ -83,12 +83,14 @@ const graph = computed(() => {
 })
 
 const edgeColor = (status?: string) =>
-  status === 'done' ? 'text-success' : status === 'active' ? 'text-primary' : 'text-muted/60'
+  status === 'done' ? 'text-success' : status === 'active' ? 'text-primary' : status === 'failed' ? 'text-error' : status === 'blocked' ? 'text-warning' : 'text-muted/60'
 
 const statusMeta = {
   done: { icon: 'i-lucide-check', color: 'text-success', ring: 'ring-success/40' },
   active: { icon: 'i-lucide-loader-circle', color: 'text-primary', ring: 'ring-primary/50' },
   pending: { icon: 'i-lucide-circle', color: 'text-muted', ring: 'ring-default' },
+  blocked: { icon: 'i-lucide-pause', color: 'text-warning', ring: 'ring-warning/40' },
+  failed: { icon: 'i-lucide-circle-x', color: 'text-error', ring: 'ring-error/40' },
 } as const
 
 const viewport = ref<HTMLElement>()
@@ -186,19 +188,21 @@ function onNodeClick(item: string) {
 }
 
 function pick(key: string, option: CraftOption) {
-  if (moved.value) return
+  if (moved.value || props.readOnly) return
   let selection: CraftSelection
-  if (option.type === 'recipe') selection = { type: 'recipe', recipeIndex: option.index }
+  if (option.type === 'recipe') selection = { type: 'recipe', recipe_id: option.recipeId }
   else if (option.type === 'storage') selection = { type: 'storage' }
   else selection = { type: 'any' }
   emit('select', key, selection)
 }
 
 function sourceFromStorage(key: string) {
+  if (props.readOnly) return
   emit('select', key, { type: 'storage' })
 }
 
 function unpick(key: string) {
+  if (props.readOnly) return
   emit('unselect', key)
 }
 
@@ -256,7 +260,7 @@ onMounted(center)
             <UBadge color="warning" variant="soft" size="sm" class="ml-auto shrink-0">pick 1</UBadge>
           </div>
           <div class="space-y-1.5">
-            <button v-for="(option, optionIndex) in item.node.options" :key="option.type === 'recipe' ? option.index : option.type" type="button" class="craft-option block w-full rounded-md border border-default bg-default/40 p-1.5 text-left transition hover:border-primary hover:ring-2 hover:ring-primary/50" :style="{ '--craft-delay': `${optionIndex * 80}ms` }" @click="pick(item.key, option)">
+            <button v-for="(option, optionIndex) in item.node.options" :key="option.type === 'recipe' ? option.recipeId : option.type" type="button" :disabled="readOnly" class="craft-option block w-full rounded-md border border-default bg-default/40 p-1.5 text-left transition hover:border-primary hover:ring-2 hover:ring-primary/50 disabled:cursor-default disabled:opacity-100 disabled:hover:border-default disabled:hover:ring-0" :style="{ '--craft-delay': `${optionIndex * 80}ms` }" @click="pick(item.key, option)">
               <div v-if="option.type === 'any'" class="flex items-center gap-1.5 py-0.5 text-[11px]">
                 <UIcon name="i-lucide-shuffle" class="size-3 shrink-0 text-info" />
                 <span class="font-medium text-highlighted">Use any recipe</span>
@@ -264,8 +268,12 @@ onMounted(center)
               <div v-else-if="option.type === 'storage'" class="flex items-center gap-1.5 py-0.5 text-[11px]">
                 <UIcon name="i-lucide-package-search" class="size-3 shrink-0 text-warning" />
                 <span class="font-medium text-highlighted">From storage</span>
+                <UBadge :color="option.available ? 'success' : 'error'" variant="soft" size="sm" class="ml-auto">{{ option.available ? 'available' : 'not enough' }}</UBadge>
               </div>
-              <CraftOptionPreview v-else :node="option.preview" />
+              <div v-else class="flex items-center gap-1.5">
+                <CraftOptionPreview :node="option.preview" class="min-w-0 flex-1" />
+                <UBadge :color="option.available ? 'success' : 'error'" variant="soft" size="sm" class="shrink-0">{{ option.available ? 'available' : 'not enough' }}</UBadge>
+              </div>
             </button>
           </div>
         </div>
@@ -279,12 +287,17 @@ onMounted(center)
           </div>
           <div class="mt-1.5 flex items-center justify-between">
             <UBadge :color="item.node.type === 'recipe' ? 'neutral' : item.node.type === 'any' ? 'info' : 'warning'" variant="soft" size="sm">×{{ formatCount(item.node.quantity) }}</UBadge>
-            <span v-if="item.node.type === 'storage'" class="text-[9px] uppercase tracking-wide text-muted">storage</span>
-            <span v-else-if="item.node.type === 'any'" class="text-[9px] uppercase tracking-wide text-info">any recipe</span>
+            <div class="min-w-0 text-right text-[9px] uppercase tracking-wide">
+              <span v-if="item.node.type === 'recipe' && item.node.completedCrafts !== undefined" class="block tabular-nums" :class="item.node.completedCrafts >= item.node.crafts ? 'text-success' : 'text-primary'">{{ item.node.completedCrafts }}/{{ item.node.crafts }} crafts</span>
+              <span v-else-if="item.node.type === 'storage' && item.node.completedQuantity !== undefined" class="block tabular-nums" :class="item.node.completedQuantity >= item.node.quantity ? 'text-success' : 'text-warning'">{{ item.node.completedQuantity }}/{{ item.node.quantity }} staged</span>
+              <span v-else-if="item.node.type === 'storage'" class="block" :class="item.node.available >= item.node.quantity ? 'text-success' : 'text-error'">{{ item.node.available }}/{{ item.node.quantity }} in storage</span>
+              <span v-else-if="item.node.type === 'any'" class="block text-info">any recipe</span>
+              <span v-if="item.node.operation" class="block truncate text-muted" :title="item.node.operation.error ?? `${item.node.operation.kind}: ${item.node.operation.state}`">{{ item.node.operation.kind }} · {{ item.node.operation.state }}</span>
+            </div>
           </div>
         </button>
         <UButton
-          v-if="!statuses && (item.node.type === 'recipe' || item.node.type === 'storage' || item.node.type === 'any') && item.node.selected"
+          v-if="!readOnly && !statuses && (item.node.type === 'recipe' || item.node.type === 'storage' || item.node.type === 'any') && item.node.selected"
           color="warning"
           variant="solid"
           size="xs"
@@ -296,7 +309,7 @@ onMounted(center)
           @click="unpick(item.key)"
         />
         <UButton
-          v-if="!statuses && item.node.type === 'recipe' && !item.node.selected"
+          v-if="!readOnly && !statuses && item.node.type === 'recipe' && !item.node.selected"
           color="neutral"
           variant="solid"
           size="xs"

@@ -13,7 +13,100 @@ paths:
             schema:
               $ref: '#/components/schemas/PlannerRequest'
         required: true
-      responses: {}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueResponse'
+  /api/v1/status:
+    get:
+      summary: Get planner queue and work-unit pool status
+      operationId: api_status_get_system_status
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatusResponse'
+  /api/v1/recipes:
+    get:
+      summary: List available crafting recipes
+      operationId: api_crafting_list_recipes
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecipeResponse'
+  /api/v1/crafting:
+    get:
+      summary: List craft job statuses
+      operationId: api_crafting_list_craft_statuses
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CraftJobStatus'
+    post:
+      summary: Queue a resolved craft plan
+      operationId: api_crafting_queue_craft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CraftPlanRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CraftQueueResponse'
+  /api/v1/crafting/plan:
+    post:
+      summary: Resolve a crafting plan
+      operationId: api_crafting_resolve_crafting_plan
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CraftPlanRequest'
+        required: true
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CraftPlan'
+  /api/v1/crafting/{id}:
+    get:
+      summary: Get a craft job status
+      operationId: api_crafting_get_craft_status
+      parameters:
+      - name: id
+        schema:
+          type: string
+        in: path
+        style: simple
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CraftJobDetail'
   /api/v1/storage:
     get:
       summary: Search indexed storage contents
@@ -247,6 +340,337 @@ components:
       - position
       - capacity
       - contents
+    CraftExecutionNode:
+      type: object
+      properties:
+        key:
+          type: string
+        item_kind:
+          type: string
+        required_quantity:
+          type: integer
+        completed_quantity:
+          type: integer
+        state:
+          type: string
+        assigned_region_id:
+          nullable: true
+          type: string
+        error:
+          nullable: true
+          type: string
+        operation:
+          $ref: '#/components/schemas/CraftExecutionOperation'
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CraftExecutionNode'
+        kind:
+          $ref: '#/components/schemas/CraftExecutionNodeKind'
+      required:
+      - key
+      - item_kind
+      - required_quantity
+      - completed_quantity
+      - state
+      - children
+      - kind
+    CraftExecutionNodeKind:
+      oneOf:
+      - type: object
+        properties:
+          recipe_id:
+            type: string
+          engine_type:
+            type: string
+          planned_crafts:
+            type: integer
+          completed_crafts:
+            type: integer
+          output_yield:
+            type: integer
+          type:
+            type: string
+            enum:
+            - recipe
+        required:
+        - recipe_id
+        - engine_type
+        - planned_crafts
+        - completed_crafts
+        - output_yield
+        - type
+      - type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - storage
+            - any
+        required:
+        - type
+    CraftExecutionOperation:
+      type: object
+      properties:
+        kind:
+          type: string
+        state:
+          type: string
+        completed_amount:
+          type: integer
+        error:
+          nullable: true
+          type: string
+      required:
+      - kind
+      - state
+      - completed_amount
+    CraftJobDetail:
+      type: object
+      properties:
+        job:
+          $ref: '#/components/schemas/CraftJobStatus'
+        root:
+          $ref: '#/components/schemas/CraftExecutionNode'
+      required:
+      - job
+      - root
+    CraftJobState:
+      type: string
+      enum:
+      - queued
+      - waiting
+      - running
+      - completed
+      - failed
+    CraftJobStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        target_item_kind:
+          type: string
+        target_quantity:
+          type: integer
+        selections:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CraftSelection'
+        state:
+          $ref: '#/components/schemas/CraftJobState'
+        completed_quantity:
+          type: integer
+        error:
+          nullable: true
+          type: string
+      required:
+      - id
+      - target_item_kind
+      - target_quantity
+      - selections
+      - state
+      - completed_quantity
+    CraftNode:
+      type: object
+      properties:
+        key:
+          type: string
+        item_kind:
+          type: string
+        quantity:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CraftNode'
+        kind:
+          $ref: '#/components/schemas/CraftNodeKind'
+      required:
+      - key
+      - item_kind
+      - quantity
+      - children
+      - kind
+    CraftNodeKind:
+      oneOf:
+      - type: object
+        properties:
+          recipe_id:
+            type: string
+          crafts:
+            type: integer
+          output_yield:
+            type: integer
+          selected:
+            type: boolean
+          type:
+            type: string
+            enum:
+            - recipe
+        required:
+        - recipe_id
+        - crafts
+        - output_yield
+        - selected
+        - type
+      - type: object
+        properties:
+          available:
+            type: integer
+          selected:
+            type: boolean
+          type:
+            type: string
+            enum:
+            - storage
+        required:
+        - available
+        - selected
+        - type
+      - type: object
+        properties:
+          options:
+            type: array
+            items:
+              $ref: '#/components/schemas/CraftOption'
+          type:
+            type: string
+            enum:
+            - choice
+        required:
+        - options
+        - type
+      - type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - any
+            - deferred
+        required:
+        - type
+    CraftOption:
+      oneOf:
+      - type: object
+        properties:
+          recipe_id:
+            type: string
+          preview:
+            type: object
+          available:
+            type: boolean
+          type:
+            type: string
+            enum:
+            - recipe
+        required:
+        - recipe_id
+        - preview
+        - available
+        - type
+      - type: object
+        properties:
+          preview:
+            type: object
+          available:
+            type: boolean
+          type:
+            type: string
+            enum:
+            - storage
+        required:
+        - preview
+        - available
+        - type
+      - type: object
+        properties:
+          preview:
+            type: object
+          type:
+            type: string
+            enum:
+            - any
+        required:
+        - preview
+        - type
+    CraftPlan:
+      type: object
+      properties:
+        target_item_kind:
+          type: string
+        target_quantity:
+          type: integer
+        root:
+          $ref: '#/components/schemas/CraftNode'
+        raw_materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/RawMaterialRequirement'
+        unresolved:
+          type: boolean
+      required:
+      - target_item_kind
+      - target_quantity
+      - root
+      - raw_materials
+      - unresolved
+    CraftPlanRequest:
+      type: object
+      properties:
+        item_kind:
+          type: string
+        amount:
+          type: integer
+        selections:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/CraftSelection'
+        job_id:
+          nullable: true
+          type: string
+      required:
+      - item_kind
+      - amount
+      - selections
+    CraftQueueResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+      required:
+      - job_id
+    CraftSelection:
+      oneOf:
+      - type: object
+        properties:
+          recipe_id:
+            type: string
+          type:
+            type: string
+            enum:
+            - recipe
+        required:
+        - recipe_id
+        - type
+      - type: object
+        properties:
+          type:
+            type: string
+            enum:
+            - storage
+            - any
+        required:
+        - type
+    IngredientResponse:
+      type: object
+      properties:
+        item_kind:
+          type: string
+        quantity:
+          type: integer
+      required:
+      - item_kind
+      - quantity
     ItemKindDetails:
       type: object
       properties:
@@ -337,12 +761,71 @@ components:
       - components
       - quantity
       - components_digest
+    PlannerQueueItem:
+      type: object
+      properties:
+        position:
+          type: integer
+        kind:
+          $ref: '#/components/schemas/PlannerRequestKind'
+        detail:
+          nullable: true
+          type: string
+      required:
+      - position
+      - kind
     PlannerRequest:
       type: string
       enum:
       - IndexRegions
       - CycleCount
       - Putaway
+    PlannerRequestKind:
+      type: string
+      enum:
+      - index_regions
+      - cycle_count
+      - putaway
+    QueueResponse:
+      type: object
+      properties:
+        job_id:
+          nullable: true
+          type: string
+    RawMaterialRequirement:
+      type: object
+      properties:
+        item_kind:
+          type: string
+        quantity:
+          type: integer
+        available:
+          type: integer
+      required:
+      - item_kind
+      - quantity
+      - available
+    RecipeResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        output_item_kind:
+          type: string
+        output_yield:
+          type: integer
+        engine_type:
+          type: string
+        ingredients:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngredientResponse'
+      required:
+      - id
+      - output_item_kind
+      - output_yield
+      - engine_type
+      - ingredients
     Region:
       type: object
       properties:
@@ -447,3 +930,74 @@ components:
       enum:
       - asc
       - desc
+    SystemStatusResponse:
+      type: object
+      properties:
+        planner_queue:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlannerQueueItem'
+        work_unit_pool:
+          $ref: '#/components/schemas/WorkUnitPoolSummary'
+        work_units:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkUnitStatus'
+      required:
+      - planner_queue
+      - work_unit_pool
+      - work_units
+    WorkUnitKind:
+      type: string
+      enum:
+      - index_region
+      - index_container
+      - transfer
+      - craft
+    WorkUnitPoolSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        queued:
+          type: integer
+        claimed:
+          type: integer
+        completed:
+          type: integer
+      required:
+      - total
+      - queued
+      - claimed
+      - completed
+    WorkUnitStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          $ref: '#/components/schemas/WorkUnitKind'
+        state:
+          $ref: '#/components/schemas/WorkUnitStatusState'
+        priority:
+          type: integer
+        completed_steps:
+          nullable: true
+          type: integer
+        total_steps:
+          nullable: true
+          type: integer
+        detail:
+          type: string
+      required:
+      - id
+      - kind
+      - state
+      - priority
+      - detail
+    WorkUnitStatusState:
+      type: string
+      enum:
+      - queued
+      - claimed
+      - completed

@@ -5,7 +5,7 @@ use crate::{
     ids::WorkUnitId,
     work_units::{
         index_container::IndexContainerWorkUnit, index_region::IndexRegionWorkUnit,
-        transfer::TransferWorkUnit,
+        transfer::TransferWorkUnit, craft::CraftWorkUnit,
     },
 };
 
@@ -27,6 +27,7 @@ pub enum WorkUnitData {
     IndexRegion(IndexRegionWorkUnit),
     IndexContainer(IndexContainerWorkUnit),
     Transfer(TransferWorkUnit),
+    Craft(CraftWorkUnit),
 }
 
 #[enum_dispatch]

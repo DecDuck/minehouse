@@ -1,8 +1,10 @@
+create type craft_job_state as enum ('queued', 'waiting', 'running', 'completed', 'failed');
+
 create table craft_job (
     id uuid primary key,
     target_item_kind text not null,
     target_quantity integer not null check (target_quantity > 0),
-    state text not null check (state in ('queued', 'running', 'completed', 'failed')),
+    state craft_job_state not null,
     completed_quantity integer not null default 0 check (completed_quantity >= 0),
     error text,
     created_at timestamptz not null default now(),

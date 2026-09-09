@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CraftNode } from '~/composables/useCrafting'
+import type { CraftNode } from '~/types/crafting'
 
 defineProps<{ node: CraftNode; depth?: number }>()
 

@@ -2,7 +2,7 @@ create table recipe (
     id uuid primary key,
     output_item_kind text not null,
     output_yield integer not null check (output_yield > 0),
-    engine_type text not null default 'crafting_table'
+    engine_type crafting_engine_type not null default 'crafting_table'
 );
 
 create index recipe_output_item_kind_idx on recipe (output_item_kind);

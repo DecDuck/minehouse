@@ -68,6 +68,14 @@ impl ItemStack {
     }
 }
 
+pub fn item_kind_stack_size(item_kind: &str) -> u32 {
+    ItemKind::from_str(item_kind)
+        .ok()
+        .and_then(|kind| u32::try_from(kind.max_stack_size()).ok())
+        .filter(|size| *size > 0)
+        .unwrap_or(64)
+}
+
 impl SKU {
     pub fn stack_size(&self) -> i32 {
         self.1

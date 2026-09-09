@@ -55,6 +55,8 @@ impl Planner {
         }
 
         self.refresh_endpoint_contents().await?;
+        self.state.db.complete_craft_recovery().await?;
+        self.state.craft_planner_wake.mark_recovery_ready();
         Ok(())
     }
 }

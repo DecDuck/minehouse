@@ -1,4 +1,4 @@
-use std::{sync::Arc, usize};
+use std::sync::Arc;
 
 use axum::Router;
 use common::rpc::MinehouseServer as _;
@@ -15,7 +15,7 @@ use tracing::info;
 use crate::{
     config::load_config,
     db::DatabaseHandle,
-    mwms::planner::{Planner, PlannerQueue},
+    mwms::planner::{CraftPlanner, CraftPlannerWake, Planner, PlannerQueue},
     rpc::server::MinehouseServerImpl,
     state::MinehouseState,
     work::pool::WorkUnitPool,
@@ -53,8 +53,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let server = server
         .post("/api/v1/queue", api::queue_request)
+        .get("/api/v1/status", api::get_system_status)
         .get("/api/v1/recipes", api::list_recipes)
         .get("/api/v1/crafting", api::list_craft_statuses)
+        .post("/api/v1/crafting", api::queue_craft)
         .post("/api/v1/crafting/plan", api::resolve_crafting_plan)
         .get("/api/v1/crafting/{id}", api::get_craft_status)
         .get("/api/v1/storage", api::list_storage)
@@ -81,19 +83,25 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let db_handle = Arc::new(DatabaseHandle::new(&config).await?);
     info!("connected to database");
+    db_handle.prepare_craft_recovery().await?;
 
     let work_unit_pool = Arc::new(WorkUnitPool::new());
 
     let planner_queue = PlannerQueue::new();
+    planner_queue.push(crate::mwms::planner::PlannerRequest::IndexRegions);
+    planner_queue.push(crate::mwms::planner::PlannerRequest::CycleCount);
+    let craft_planner_wake = CraftPlannerWake::new();
     let app_state = Arc::new(MinehouseState::new(
         db_handle,
         work_unit_pool,
         planner_queue.clone(),
+        craft_planner_wake.clone(),
     ));
     let server_app_state = app_state.clone();
 
     // Handle for submitting planner requests from any task / inspecting in a UI.
     tokio::spawn(Planner::new(app_state.clone(), planner_queue.clone()).run());
+    tokio::spawn(CraftPlanner::new(app_state.clone(), craft_planner_wake).run());
 
     let app = Router::new()
         .merge(server.into_router())

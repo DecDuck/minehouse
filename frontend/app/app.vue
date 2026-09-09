@@ -4,6 +4,7 @@ const nav = [
   { to: '/', label: 'Storage', icon: 'i-lucide-package-search' },
   { to: '/containers', label: 'Containers', icon: 'i-lucide-boxes' },
   { to: '/crafting', label: 'Crafting', icon: 'i-lucide-hammer' },
+  { to: '/operations', label: 'Operations', icon: 'i-lucide-activity' },
   { to: '/regions', label: 'Regions', icon: 'i-lucide-map' },
 ]
 </script>

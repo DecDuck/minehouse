@@ -1,36 +1,43 @@
 <script setup lang="ts">
+import { executionStatuses } from '~/utils/crafting'
+
 const route = useRoute()
 const { formatItemKind, formatCount } = useFormat()
-const { getCraft, buildTree, flatten, rawMaterials, statusesFor } = useCrafting()
+const { loadCraftDetail } = useCrafting()
+const craftId = route.params.id as string
+const detail = ref(await loadCraftDetail(craftId))
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+async function refresh() { detail.value = await loadCraftDetail(craftId) }
+onMounted(() => { refreshTimer = setInterval(() => { void refresh() }, 2000) })
+onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 
-const craft = computed(() => getCraft(route.params.id as string))
-const tree = computed(() => (craft.value ? buildTree(craft.value.target, craft.value.amount, craft.value.selections, '0', false, true) : null))
-const stepCount = computed(() => (tree.value ? flatten(tree.value).filter((row) => row.node.type === 'recipe').length : 0))
-const materialCount = computed(() => (tree.value ? rawMaterials(tree.value).size : 0))
-const statuses = computed(() =>
-  tree.value && craft.value ? statusesFor(tree.value, craft.value.progress) : undefined)
+const craft = computed(() => detail.value.job)
+const tree = computed(() => detail.value.root)
+const statuses = computed(() => executionStatuses(tree.value))
 </script>
 
 <template>
   <section class="flex h-[calc(100dvh-3rem)] min-w-0 flex-col lg:h-[calc(100dvh-5rem)]">
     <UButton to="/crafting" color="neutral" variant="link" icon="i-lucide-arrow-left" class="mb-3 shrink-0 self-start px-0">Back to crafting</UButton>
 
-    <template v-if="craft && tree">
+    <template v-if="craft">
       <div class="flex min-h-0 flex-1 flex-col">
         <header class="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <div class="flex items-center gap-2">
-            <h2 class="text-2xl font-semibold capitalize tracking-tight text-highlighted sm:text-3xl">{{ formatItemKind(craft.target) }}</h2>
-            <UBadge color="neutral" variant="soft">×{{ formatCount(craft.amount) }}</UBadge>
+            <h2 class="text-2xl font-semibold capitalize tracking-tight text-highlighted sm:text-3xl">{{ formatItemKind(craft.target_item_kind) }}</h2>
+            <UBadge color="neutral" variant="soft">×{{ formatCount(craft.target_quantity) }}</UBadge>
           </div>
-          <p class="mt-1 text-xs text-muted"><span class="mono">{{ craft.id }}</span> · {{ stepCount }} craft step{{ stepCount === 1 ? '' : 's' }} · {{ materialCount }} raw material{{ materialCount === 1 ? '' : 's' }} · started {{ craft.startedAt }}</p>
+          <p class="mt-1 text-xs text-muted"><span class="mono">{{ craft.id }}</span> · {{ craft.completed_quantity }}/{{ craft.target_quantity }} completed</p>
         </div>
-        <UBadge :color="craft.progress >= 1 ? 'success' : 'primary'" variant="subtle">{{ craft.progress >= 1 ? 'Complete' : `${Math.round(craft.progress * 100)}% complete` }}</UBadge>
+        <UBadge :color="craft.state === 'completed' ? 'success' : craft.state === 'failed' ? 'error' : 'primary'" variant="subtle">{{ craft.state }}</UBadge>
         </header>
 
-        <UProgress :model-value="Math.round(craft.progress * 100)" :color="craft.progress >= 1 ? 'success' : 'primary'" class="mt-4 shrink-0" />
+        <UProgress :model-value="craft.target_quantity ? Math.round(craft.completed_quantity / craft.target_quantity * 100) : 0" :color="craft.state === 'completed' ? 'success' : craft.state === 'failed' ? 'error' : 'primary'" class="mt-4 shrink-0" />
 
-        <CraftTree :tree="tree" :statuses="statuses" class="mt-4" />
+        <p v-if="craft.error" class="mt-4 text-sm text-error">{{ craft.error }}</p>
+
+        <CraftTree v-if="tree" :tree="tree" :statuses="statuses" read-only class="mt-4" />
       </div>
     </template>
 

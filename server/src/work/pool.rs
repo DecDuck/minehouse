@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use common::{
     ids::{ClientId, WorkUnitId},
@@ -9,8 +9,24 @@ use dashmap::DashMap;
 use tokio::sync::watch;
 use tracing::info;
 
+use crate::{state::MinehouseState, work::WorkUnitLifecycle};
+
 pub struct WorkUnitPool {
     pool: DashMap<WorkUnitId, ScheduledWorkUnit>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkUnitState {
+    Queued,
+    Claimed,
+    Completed,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkUnitSnapshot {
+    pub priority: usize,
+    pub work_unit: WorkUnit,
+    pub state: WorkUnitState,
 }
 
 impl WorkUnitPool {
@@ -40,6 +56,27 @@ impl WorkUnitPool {
 
     pub fn work_units(&self) -> Vec<WorkUnit> {
         self.pool.iter().map(|v| v.work_unit.clone()).collect()
+    }
+
+    pub fn contains_work_unit(&self, id: &WorkUnitId) -> bool {
+        self.pool.contains_key(id)
+    }
+
+    pub fn snapshot(&self) -> Vec<WorkUnitSnapshot> {
+        self.pool
+            .iter()
+            .map(|scheduled| WorkUnitSnapshot {
+                priority: scheduled.priority,
+                state: if scheduled.work_unit.is_done() {
+                    WorkUnitState::Completed
+                } else if scheduled.assigned_to.is_some() {
+                    WorkUnitState::Claimed
+                } else {
+                    WorkUnitState::Queued
+                },
+                work_unit: scheduled.work_unit.clone(),
+            })
+            .collect()
     }
 
     pub fn available_work_units(&self) -> Vec<WorkUnit> {
@@ -78,6 +115,29 @@ impl WorkUnitPool {
         }
     }
 
+    pub async fn claim(
+        &self,
+        id: &WorkUnitId,
+        client_id: &ClientId,
+        state: Arc<MinehouseState>,
+    ) -> Result<(), MinehouseError> {
+        self.claim_work_unit(id, client_id)?;
+        let work_unit = self
+            .pool
+            .get(id)
+            .map(|scheduled| scheduled.work_unit.clone())
+            .ok_or(MinehouseError::WorkUnitNotFound)?;
+        if let Err(error) = work_unit.data.claimed(work_unit.id, state).await {
+            if let Some(mut scheduled) = self.pool.get_mut(id)
+                && scheduled.assigned_to == Some(*client_id)
+            {
+                scheduled.assigned_to = None;
+            }
+            return Err(error);
+        }
+        Ok(())
+    }
+
     pub fn release_client(&self, client_id: &ClientId) {
         for mut scheduled_wu in self.pool.iter_mut() {
             if scheduled_wu.assigned_to == Some(*client_id) {
@@ -113,6 +173,22 @@ impl WorkUnitPool {
         }
 
         Ok(())
+    }
+
+    pub async fn submit(
+        &self,
+        work_unit: WorkUnit,
+        client_id: &ClientId,
+        state: Arc<MinehouseState>,
+    ) -> Result<bool, MinehouseError> {
+        let is_done = work_unit.is_done();
+        self.submit_work_unit(work_unit.clone(), client_id).await?;
+        if is_done {
+            work_unit.data.done(work_unit.id, state).await?;
+        } else {
+            work_unit.data.updated(work_unit.id, state).await?;
+        }
+        Ok(is_done)
     }
 
     pub async fn wait_work_unit(
@@ -170,7 +246,7 @@ mod tests {
     };
     use uuid::Uuid;
 
-    use super::WorkUnitPool;
+    use super::{WorkUnitPool, WorkUnitState};
 
     fn work_unit(id: WorkUnitId, done: bool) -> WorkUnit {
         WorkUnit {
@@ -231,6 +307,29 @@ mod tests {
         assert!(completed.is_done());
         assert_eq!(pool.pool.get(&id).unwrap().assigned_to, None);
         assert!(pool.available_work_units().is_empty());
+    }
+
+    #[tokio::test]
+    async fn snapshot_tracks_state_and_retains_completed_work() {
+        let pool = WorkUnitPool::new();
+        let id = WorkUnitId::new();
+        let client_id = ClientId::new();
+        pool.queue_work_unit(work_unit(id, false), Some(7));
+
+        let queued = pool.snapshot();
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].priority, 7);
+        assert_eq!(queued[0].state, WorkUnitState::Queued);
+
+        pool.claim_work_unit(&id, &client_id).unwrap();
+        assert_eq!(pool.snapshot()[0].state, WorkUnitState::Claimed);
+
+        pool.submit_work_unit(work_unit(id, true), &client_id)
+            .await
+            .unwrap();
+        let completed = pool.snapshot();
+        assert_eq!(completed.len(), 1);
+        assert_eq!(completed[0].state, WorkUnitState::Completed);
     }
 
     #[tokio::test]

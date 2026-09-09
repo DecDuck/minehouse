@@ -1,14 +1,17 @@
+use std::str::FromStr;
+
+use azalea_registry::builtin::ItemKind;
 use common::work_units::craft::CraftIngredient;
 use uuid::Uuid;
 
-use super::DatabaseHandle;
+use super::{DatabaseHandle, crafting_engine::CraftingEngineType};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct RecipeRow {
     pub id: Uuid,
     pub output_item_kind: String,
     pub output_yield: i32,
-    pub engine_type: String,
+    pub engine_type: CraftingEngineType,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -22,9 +25,9 @@ pub struct RecipeIngredientRow {
 #[derive(Debug, Clone)]
 pub struct Recipe {
     pub id: Uuid,
-    pub output_item_kind: String,
+    pub output_item_kind: ItemKind,
     pub output_yield: u32,
-    pub engine_type: String,
+    pub engine_type: CraftingEngineType,
     pub ingredients: Vec<CraftIngredient>,
 }
 
@@ -33,14 +36,10 @@ impl DatabaseHandle {
         self.fetch_recipes(None).await
     }
 
-    pub async fn fetch_recipes_for(&self, item_kind: &str) -> Result<Vec<Recipe>, sqlx::Error> {
-        self.fetch_recipes(Some(item_kind)).await
-    }
-
     async fn fetch_recipes(&self, item_kind: Option<&str>) -> Result<Vec<Recipe>, sqlx::Error> {
         let rows = sqlx::query_as!(
             RecipeRow,
-            "select id, output_item_kind, output_yield, engine_type from recipe where ($1::text is null or output_item_kind = $1) order by output_item_kind, id",
+            "select id, output_item_kind, output_yield, engine_type as \"engine_type: CraftingEngineType\" from recipe where ($1::text is null or output_item_kind = $1) order by output_item_kind, id",
             item_kind,
         )
         .fetch_all(&self.pool)
@@ -60,7 +59,11 @@ impl DatabaseHandle {
                 .entry(ingredient.recipe_id)
                 .or_default()
                 .push(CraftIngredient {
-                    item_kind: ingredient.item_kind,
+                    item_kind: ItemKind::from_str(&ingredient.item_kind).map_err(|_| {
+                        sqlx::Error::Protocol(
+                            format!("unknown recipe ingredient {}", ingredient.item_kind).into(),
+                        )
+                    })?,
                     quantity,
                 });
         }
@@ -68,7 +71,11 @@ impl DatabaseHandle {
             .map(|row| {
                 Ok(Recipe {
                     id: row.id,
-                    output_item_kind: row.output_item_kind,
+                    output_item_kind: ItemKind::from_str(&row.output_item_kind).map_err(|_| {
+                        sqlx::Error::Protocol(
+                            format!("unknown recipe output {}", row.output_item_kind).into(),
+                        )
+                    })?,
                     output_yield: u32::try_from(row.output_yield).map_err(|_| {
                         sqlx::Error::Protocol("recipe yield must be positive".into())
                     })?,

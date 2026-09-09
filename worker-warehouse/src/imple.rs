@@ -5,7 +5,9 @@ use common::{
 };
 use worker_core::{client::WorkUnitClient, tick::WorkerControlLoop};
 
-use crate::{index_container::index_container, index_region::index_region, transfer::transfer};
+use crate::{
+    craft::craft, index_container::index_container, index_region::index_region, transfer::transfer,
+};
 
 pub struct WarehouseWorker;
 
@@ -44,6 +46,13 @@ fn work_unit_distance_squared(work_unit: &WorkUnit, point: Point) -> f64 {
             let dz = point.z - position.z;
             dx * dx + dy * dy + dz * dz
         }
+        WorkUnitData::Craft(data) => {
+            let position = data.locations.engine;
+            let dx = point.x - position.x;
+            let dy = point.y - position.y;
+            let dz = point.z - position.z;
+            dx * dx + dy * dy + dz * dz
+        }
     }
 }
 
@@ -62,7 +71,8 @@ impl WorkerControlLoop for WarehouseWorker {
         match wu.data {
             WorkUnitData::IndexRegion(_)
             | WorkUnitData::IndexContainer(_)
-            | WorkUnitData::Transfer(_) => true,
+            | WorkUnitData::Transfer(_)
+            | WorkUnitData::Craft(_) => true,
         }
     }
 
@@ -86,6 +96,7 @@ impl WorkerControlLoop for WarehouseWorker {
             WorkUnitData::IndexRegion(_) => index_region(wu, client, mc_client).await,
             WorkUnitData::IndexContainer(_) => index_container(wu, client, mc_client).await,
             WorkUnitData::Transfer(_) => transfer(wu, client, mc_client).await,
+            WorkUnitData::Craft(_) => craft(wu, client, mc_client).await,
         }
     }
 }

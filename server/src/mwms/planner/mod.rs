@@ -22,10 +22,12 @@ use crate::{
 
 pub use queue::InspectableQueue;
 pub use request::PlannerRequest;
-pub mod craft;
+pub mod craft_planner;
 pub mod cycle_count;
 pub mod index_regions;
 pub mod putaway;
+
+pub use craft_planner::{CraftPlanner, CraftPlannerWake};
 
 /// Inspectable queue of pending [`PlannerRequest`]s: push from any task, snapshot for a UI.
 pub type PlannerQueue = InspectableQueue<PlannerRequest>;
@@ -150,34 +152,6 @@ impl Planner {
             }
             PlannerRequest::Putaway => {
                 self.putaway().await?;
-            }
-            PlannerRequest::Craft(request) => {
-                let retry = request.clone();
-                let job_id = request
-                    .job_id
-                    .as_deref()
-                    .and_then(|id| uuid::Uuid::parse_str(id).ok());
-                match self.craft(request).await {
-                    Ok(craft::CraftAttempt::Waiting) => {
-                        return Ok(Some(PlannerRequest::Craft(retry)));
-                    }
-                    Ok(craft::CraftAttempt::Completed) => {}
-                    Err(error) => {
-                        if let Some(job_id) = job_id {
-                            let _ = self
-                                .state
-                                .db
-                                .update_craft_job(
-                                    job_id,
-                                    crate::mwms::crafting::CraftJobState::Failed,
-                                    0,
-                                    Some(error.to_string()),
-                                )
-                                .await;
-                        }
-                        return Err(error);
-                    }
-                }
             }
         }
         Ok(None)

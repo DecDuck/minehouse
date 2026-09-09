@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import type { CraftNode, CraftSelection } from '~/composables/useCrafting'
+import type { CraftNode, CraftNodeStatus, CraftSelection } from '~/types/crafting'
+import { rawCraftMaterials } from '~/utils/crafting'
 
 const props = defineProps<{
   tree: CraftNode
-  statuses?: Map<string, 'done' | 'active' | 'pending'>
+  statuses?: Map<string, CraftNodeStatus>
+  readOnly?: boolean
 }>()
 const emit = defineEmits<{ select: [key: string, selection: CraftSelection]; unselect: [key: string] }>()
 
 const { formatItemKind, formatCount } = useFormat()
-const { rawMaterials } = useCrafting()
-
-const materials = computed(() => [...rawMaterials(props.tree).entries()].sort((a, b) => b[1] - a[1]))
+const materials = computed(() => [...rawCraftMaterials(props.tree).entries()].sort((a, b) => b[1] - a[1]))
 </script>
 
 <template>
@@ -26,6 +26,6 @@ const materials = computed(() => [...rawMaterials(props.tree).entries()].sort((a
       </div>
     </div>
 
-    <CraftTreeGraph :tree="tree" :statuses="statuses" class="mt-4 min-h-0 flex-1" @select="(key, selection) => emit('select', key, selection)" @unselect="(key) => emit('unselect', key)" />
+    <CraftTreeGraph :tree="tree" :statuses="statuses" :read-only="readOnly" class="mt-4 min-h-0 flex-1" @select="(key, selection) => emit('select', key, selection)" @unselect="(key) => emit('unselect', key)" />
   </div>
 </template>

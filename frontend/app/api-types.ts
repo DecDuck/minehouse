@@ -21,6 +21,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get planner queue and work-unit pool status */
+        get: operations["api_status_get_system_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List available crafting recipes */
+        get: operations["api_crafting_list_recipes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crafting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List craft job statuses */
+        get: operations["api_crafting_list_craft_statuses"];
+        put?: never;
+        /** Queue a resolved craft plan */
+        post: operations["api_crafting_queue_craft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crafting/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve a crafting plan */
+        post: operations["api_crafting_resolve_crafting_plan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/crafting/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a craft job status */
+        get: operations["api_crafting_get_craft_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/storage": {
         parameters: {
             query?: never;
@@ -165,6 +251,126 @@ export interface components {
             capacity: number;
             contents: components["schemas"]["ItemStackView"][];
         };
+        CraftExecutionNode: {
+            key: string;
+            item_kind: string;
+            required_quantity: number;
+            completed_quantity: number;
+            state: string;
+            assigned_region_id?: string | null;
+            error?: string | null;
+            operation?: components["schemas"]["CraftExecutionOperation"];
+            children: components["schemas"]["CraftExecutionNode"][];
+            kind: components["schemas"]["CraftExecutionNodeKind"];
+        };
+        CraftExecutionNodeKind: {
+            recipe_id: string;
+            engine_type: string;
+            planned_crafts: number;
+            completed_crafts: number;
+            output_yield: number;
+            /** @enum {string} */
+            type: "recipe";
+        } | {
+            /** @enum {string} */
+            type: "storage" | "any";
+        };
+        CraftExecutionOperation: {
+            kind: string;
+            state: string;
+            completed_amount: number;
+            error?: string | null;
+        };
+        CraftJobDetail: {
+            job: components["schemas"]["CraftJobStatus"];
+            root: components["schemas"]["CraftExecutionNode"];
+        };
+        /** @enum {string} */
+        CraftJobState: "queued" | "waiting" | "running" | "completed" | "failed";
+        CraftJobStatus: {
+            id: string;
+            target_item_kind: string;
+            target_quantity: number;
+            selections: {
+                [key: string]: components["schemas"]["CraftSelection"];
+            };
+            state: components["schemas"]["CraftJobState"];
+            completed_quantity: number;
+            error?: string | null;
+        };
+        CraftNode: {
+            key: string;
+            item_kind: string;
+            quantity: number;
+            children: components["schemas"]["CraftNode"][];
+            kind: components["schemas"]["CraftNodeKind"];
+        };
+        CraftNodeKind: {
+            recipe_id: string;
+            crafts: number;
+            output_yield: number;
+            selected: boolean;
+            /** @enum {string} */
+            type: "recipe";
+        } | {
+            available: number;
+            selected: boolean;
+            /** @enum {string} */
+            type: "storage";
+        } | {
+            options: components["schemas"]["CraftOption"][];
+            /** @enum {string} */
+            type: "choice";
+        } | {
+            /** @enum {string} */
+            type: "any" | "deferred";
+        };
+        CraftOption: {
+            recipe_id: string;
+            preview: Record<string, never>;
+            available: boolean;
+            /** @enum {string} */
+            type: "recipe";
+        } | {
+            preview: Record<string, never>;
+            available: boolean;
+            /** @enum {string} */
+            type: "storage";
+        } | {
+            preview: Record<string, never>;
+            /** @enum {string} */
+            type: "any";
+        };
+        CraftPlan: {
+            target_item_kind: string;
+            target_quantity: number;
+            root: components["schemas"]["CraftNode"];
+            raw_materials: components["schemas"]["RawMaterialRequirement"][];
+            unresolved: boolean;
+        };
+        CraftPlanRequest: {
+            item_kind: string;
+            amount: number;
+            selections: {
+                [key: string]: components["schemas"]["CraftSelection"];
+            };
+            job_id?: string | null;
+        };
+        CraftQueueResponse: {
+            job_id: string;
+        };
+        CraftSelection: {
+            recipe_id: string;
+            /** @enum {string} */
+            type: "recipe";
+        } | {
+            /** @enum {string} */
+            type: "storage" | "any";
+        };
+        IngredientResponse: {
+            item_kind: string;
+            quantity: number;
+        };
         ItemKindDetails: {
             item_kind: string;
             total_quantity: number;
@@ -197,8 +403,30 @@ export interface components {
             quantity: number;
             components_digest: string;
         };
+        PlannerQueueItem: {
+            position: number;
+            kind: components["schemas"]["PlannerRequestKind"];
+            detail?: string | null;
+        };
         /** @enum {string} */
         PlannerRequest: "IndexRegions" | "CycleCount" | "Putaway";
+        /** @enum {string} */
+        PlannerRequestKind: "index_regions" | "cycle_count" | "putaway";
+        QueueResponse: {
+            job_id?: string | null;
+        };
+        RawMaterialRequirement: {
+            item_kind: string;
+            quantity: number;
+            available: number;
+        };
+        RecipeResponse: {
+            id: string;
+            output_item_kind: string;
+            output_yield: number;
+            engine_type: string;
+            ingredients: components["schemas"]["IngredientResponse"][];
+        };
         Region: {
             id: string;
             type: components["schemas"]["RegionType"];
@@ -238,6 +466,30 @@ export interface components {
         StorageSortBy: "name" | "quantity" | "stacks" | "containers";
         /** @enum {string} */
         StorageSortDirection: "asc" | "desc";
+        SystemStatusResponse: {
+            planner_queue: components["schemas"]["PlannerQueueItem"][];
+            work_unit_pool: components["schemas"]["WorkUnitPoolSummary"];
+            work_units: components["schemas"]["WorkUnitStatus"][];
+        };
+        /** @enum {string} */
+        WorkUnitKind: "index_region" | "index_container" | "transfer" | "craft";
+        WorkUnitPoolSummary: {
+            total: number;
+            queued: number;
+            claimed: number;
+            completed: number;
+        };
+        WorkUnitStatus: {
+            id: string;
+            kind: components["schemas"]["WorkUnitKind"];
+            state: components["schemas"]["WorkUnitStatusState"];
+            priority: number;
+            completed_steps?: number | null;
+            total_steps?: number | null;
+            detail: string;
+        };
+        /** @enum {string} */
+        WorkUnitStatusState: "queued" | "claimed" | "completed";
     };
     responses: never;
     parameters: never;
@@ -259,7 +511,147 @@ export interface operations {
                 "application/json": components["schemas"]["PlannerRequest"];
             };
         };
-        responses: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueResponse"];
+                };
+            };
+        };
+    };
+    api_status_get_system_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+        };
+    };
+    api_crafting_list_recipes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeResponse"][];
+                };
+            };
+        };
+    };
+    api_crafting_list_craft_statuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CraftJobStatus"][];
+                };
+            };
+        };
+    };
+    api_crafting_queue_craft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CraftPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CraftQueueResponse"];
+                };
+            };
+        };
+    };
+    api_crafting_resolve_crafting_plan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CraftPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CraftPlan"];
+                };
+            };
+        };
+    };
+    api_crafting_get_craft_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CraftJobDetail"];
+                };
+            };
+        };
     };
     api_storage_list_storage: {
         parameters: {

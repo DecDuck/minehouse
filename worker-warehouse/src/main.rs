@@ -6,6 +6,7 @@ use worker_core::{client::WorkUnitClient, config::load_config, tick::WorkerContr
 use crate::{config::WarehouseWorkerConfig, imple::WarehouseWorker};
 
 pub mod config;
+pub mod craft;
 pub mod imple;
 pub mod index_container;
 pub mod index_region;

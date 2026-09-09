@@ -23,7 +23,7 @@ create table container (
     capacity integer not null check (capacity > 0)
 );
 
-create type crafting_engine_type as enum ('crafting_table', 'smithing', 'stonecutter', '');
+create type crafting_engine_type as enum ('crafting_table', 'smithing', 'stonecutter');
 
 create table crafting_engine (
     id uuid primary key default gen_random_uuid (),
